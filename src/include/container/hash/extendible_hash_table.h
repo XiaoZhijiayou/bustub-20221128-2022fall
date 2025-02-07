@@ -63,6 +63,8 @@ class ExtendibleHashTable : public HashTable<K, V> {
    */
   auto GetNumBuckets() const -> int;
 
+ 
+
   /**
    *
    * TODO(P1): Add implementation
@@ -94,6 +96,8 @@ class ExtendibleHashTable : public HashTable<K, V> {
    */
   void Insert(const K &key, const V &value) override;
 
+  
+
   /**
    *
    * TODO(P1): Add implementation
@@ -122,6 +126,7 @@ class ExtendibleHashTable : public HashTable<K, V> {
     inline void IncrementDepth() { depth_++; }
 
     inline auto GetItems() -> std::list<std::pair<K, V>> & { return list_; }
+
 
     /**
      *
@@ -158,16 +163,18 @@ class ExtendibleHashTable : public HashTable<K, V> {
     auto Insert(const K &key, const V &value) -> bool;
 
    private:
-    // TODO(student): You may add additional private members and helper functions
+    // TODO(student): You may add additional private members and helper functions and remove the ones
+
+    // 桶的大小
     size_t size_;
+    // 本地深度，其实就是本地桶对应的哈希位
     int depth_;
     std::list<std::pair<K, V>> list_;
   };
 
  private:
   // TODO(student): You may add additional private members and helper functions and remove the ones
-  // you don't need.
-
+  // you do not need
   int global_depth_;    // The global depth of the directory
   size_t bucket_size_;  // The size of a bucket
   int num_buckets_;     // The number of buckets in the hash table
@@ -181,6 +188,8 @@ class ExtendibleHashTable : public HashTable<K, V> {
    * @param bucket The bucket to be redistributed.
    */
   auto RedistributeBucket(std::shared_ptr<Bucket> bucket) -> void;
+
+  void InsertInternal(const K &key, const V &value);
 
   /*****************************************************************
    * Must acquire latch_ first before calling the below functions. *
