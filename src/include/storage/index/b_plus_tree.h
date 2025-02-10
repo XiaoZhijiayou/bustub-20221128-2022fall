@@ -18,6 +18,7 @@
 #include "storage/index/index_iterator.h"
 #include "storage/page/b_plus_tree_internal_page.h"
 #include "storage/page/b_plus_tree_leaf_page.h"
+#include "storage/page/b_plus_tree_page.h"
 
 namespace bustub {
 
@@ -81,6 +82,23 @@ class BPlusTree {
   void ToGraph(BPlusTreePage *page, BufferPoolManager *bpm, std::ofstream &out) const;
 
   void ToString(BPlusTreePage *page, BufferPoolManager *bpm) const;
+
+  auto FindLeaf(const KeyType &key) const -> Page *;
+
+  auto Split(BPlusTreePage *page) -> BPlusTreePage *;
+
+  void InsertToParent(BPlusTreePage *old_page, BPlusTreePage *split_page, const KeyType &split_key);
+
+  template<typename Node>
+  auto RedistributeLeft(Node *sibling_node, Node *target_node, InternalPage *parent, int index) -> void;
+
+  template<typename Node>
+  auto RedistributeRight(Node *sibling_node, Node *target_node, InternalPage *parent, int index) -> void;
+
+  template<typename Node>
+  auto Merge(Node *sibling_node, Node *target_node, InternalPage *parent, int index) -> void;
+
+  auto RedistributeOrMerge(BPlusTreePage *node) -> void;
 
   // member variable
   std::string index_name_;

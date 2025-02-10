@@ -64,12 +64,12 @@ class BPlusTreePage {
 
  private:
   // member variable, attributes that both internal and leaf page share
-  IndexPageType page_type_ __attribute__((__unused__));
-  lsn_t lsn_ __attribute__((__unused__));
-  int size_ __attribute__((__unused__));
-  int max_size_ __attribute__((__unused__));
-  page_id_t parent_page_id_ __attribute__((__unused__));
-  page_id_t page_id_ __attribute__((__unused__));
+  IndexPageType page_type_ ; // 存储页面的类型，指示页面是叶子节点还是内部节点
+  lsn_t lsn_ ; // 存储页面的日志序列号，LSN是数据库中用于记录日志的一个唯一标识符
+  int size_ ;  // 存储页面中实际存储的键值对数量
+  int max_size_ ; // 存储页面中可以存储的最大键值对数量
+  page_id_t parent_page_id_ ; // 存储页面的父节点的页面ID
+  page_id_t page_id_ ; // 存储当前页面的ID
 };
 
 }  // namespace bustub

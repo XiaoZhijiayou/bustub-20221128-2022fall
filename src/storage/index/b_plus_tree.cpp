@@ -1,10 +1,13 @@
 #include <string>
 
+#include "common/config.h"
 #include "common/exception.h"
 #include "common/logger.h"
+#include "common/macros.h"
 #include "common/rid.h"
 #include "storage/index/b_plus_tree.h"
 #include "storage/page/header_page.h"
+#include "storage/page/page.h"
 
 namespace bustub {
 INDEX_TEMPLATE_ARGUMENTS
@@ -15,13 +18,16 @@ BPLUSTREE_TYPE::BPlusTree(std::string name, BufferPoolManager *buffer_pool_manag
       buffer_pool_manager_(buffer_pool_manager),
       comparator_(comparator),
       leaf_max_size_(leaf_max_size),
-      internal_max_size_(internal_max_size) {}
+      internal_max_size_(internal_max_size) {
+        std::cout << "leaf_max_size: " << leaf_max_size << std::endl;
+        std::cout << "internal_max_size: " << internal_max_size << std::endl;
+}
 
 /*
  * Helper function to decide whether current b+tree is empty
  */
 INDEX_TEMPLATE_ARGUMENTS
-auto BPLUSTREE_TYPE::IsEmpty() const -> bool { return true; }
+auto BPLUSTREE_TYPE::IsEmpty() const -> bool { return root_page_id_ ==  INVALID_PAGE_ID;}
 /*****************************************************************************
  * SEARCH
  *****************************************************************************/
@@ -32,7 +38,7 @@ auto BPLUSTREE_TYPE::IsEmpty() const -> bool { return true; }
  */
 INDEX_TEMPLATE_ARGUMENTS
 auto BPLUSTREE_TYPE::GetValue(const KeyType &key, std::vector<ValueType> *result, Transaction *transaction) -> bool {
-  return false;
+
 }
 
 /*****************************************************************************
@@ -119,6 +125,56 @@ void BPLUSTREE_TYPE::UpdateRootPageId(int insert_record) {
   }
   buffer_pool_manager_->UnpinPage(HEADER_PAGE_ID, true);
 }
+
+INDEX_TEMPLATE_ARGUMENTS
+auto BPLUSTREE_TYPE::FindLeaf(const KeyType &key) const -> Page *{
+  BUSTUB_ASSERT(root_page_id_ != INVALID_PAGE_ID, "Invalid root page id.");
+  Page *page = buffer_pool_manager_->FetchPage(root_page_id_);
+  auto *tree_page = reinterpret_cast<BPlusTreePage *>(page->GetData());
+  while (!tree_page->IsLeafPage()) {
+    auto *internal_page = reinterpret_cast<InternalPage *>(tree_page);
+    auto page_id = internal_page->Lookup(key, comparator_);
+    page = buffer_pool_manager_->FetchPage(page_id);
+    tree_page = reinterpret_cast<BPlusTreePage *>(page->GetData());
+  }
+  return page;
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+auto BPLUSTREE_TYPE::Split(BPlusTreePage *page) -> BPlusTreePage *{
+
+}
+
+void InsertToParent(BPlusTreePage *old_page, BPlusTreePage *split_page, const KeyType &split_key){
+
+}
+
+
+INDEX_TEMPLATE_ARGUMENTS
+template<typename Node>
+auto BPLUSTREE_TYPE::RedistributeLeft(Node *sibling_node, Node *target_node, InternalPage *parent, int index) -> void {
+
+}
+
+
+INDEX_TEMPLATE_ARGUMENTS
+template<typename Node>
+auto BPLUSTREE_TYPE::RedistributeRight(Node *sibling_node, Node *target_node, InternalPage *parent, int index) -> void{
+
+}
+
+
+INDEX_TEMPLATE_ARGUMENTS
+template<typename Node>
+auto BPLUSTREE_TYPE::Merge(Node *sibling_node, Node *target_node, InternalPage *parent, int index) -> void{
+
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+auto BPLUSTREE_TYPE::RedistributeOrMerge(BPlusTreePage *node) -> void{
+
+}
+
 
 /*
  * This method is used for test only

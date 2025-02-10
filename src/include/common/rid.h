@@ -72,4 +72,5 @@ template <>
 struct hash<bustub::RID> {
   auto operator()(const bustub::RID &obj) const -> size_t { return hash<int64_t>()(obj.Get()); }
 };
+
 }  // namespace std
