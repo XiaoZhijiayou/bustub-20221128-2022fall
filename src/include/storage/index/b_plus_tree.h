@@ -96,7 +96,7 @@ class BPlusTree {
   auto RedistributeRight(Node *sibling_node, Node *target_node, InternalPage *parent, int index) -> void;
 
   template<typename Node>
-  auto Merge(Node *sibling_node, Node *target_node, InternalPage *parent, int index) -> void;
+  auto Merge(Node *dst_node, Node *src_node, InternalPage *parent, int index) -> void;
 
   auto RedistributeOrMerge(BPlusTreePage *node) -> void;
 

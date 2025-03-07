@@ -22,6 +22,24 @@ namespace bustub {
 #define LEAF_PAGE_SIZE ((BUSTUB_PAGE_SIZE - LEAF_PAGE_HEADER_SIZE) / sizeof(MappingType))
 
 /**
+ * 在叶子页面中存储索引键和记录ID（record id = 页面ID与槽ID的组合，
+ * 具体实现见 include/common/rid.h）在一起。只支持唯一键。
+ *
+ * 叶子页面格式（键按顺序存储）：
+ *  ----------------------------------------------------------------------
+ * | 头部 | 键(1) + RID(1) | 键(2) + RID(2) | ... | 键(n) + RID(n) |
+ *  ----------------------------------------------------------------------
+ *
+ * 头部格式（字节大小，总共28字节）：
+ *  ---------------------------------------------------------------------
+ * | 页面类型 (4) | LSN (4) | 当前大小 (4) | 最大大小 (4) |
+ *  ---------------------------------------------------------------------
+ *  -----------------------------------------------
+ * | 父页面ID (4) | 页面ID (4) | 下一页面ID (4) |
+ *  -----------------------------------------------
+ */
+
+/**
  * Store indexed key and record id(record id = page id combined with slot id,
  * see include/common/rid.h for detailed implementation) together within leaf
  * page. Only support unique key.
@@ -50,20 +68,53 @@ class BPlusTreeLeafPage : public BPlusTreePage {
   void SetNextPageId(page_id_t next_page_id);
   auto KeyAt(int index) const -> KeyType;
   auto ValueAt(int index) const -> ValueType;
-  auto GetItem(int index) const -> const MappingType &;
-  auto KeyIndex(const KeyType &key, const KeyComparator &comparator) const -> int;
-  auto Lookup(const KeyType &key, ValueType *value, const KeyComparator &comparator) const -> bool;
-  auto Insert(const KeyType &key, const ValueType &value, const KeyComparator &comparator) -> int;
-  auto MoveHalfTo(BPlusTreeLeafPage *dst_page) -> void;
-  auto MoveAllTo(BPlusTreeLeafPage *dst_page) -> void;
-  auto CopyData(MappingType *items, int size) -> void;
-  auto Remove(const KeyType &key, const KeyComparator &comparator) -> bool;
+
+  auto Contain(const KeyType &key, const KeyComparator &comparator) -> bool;
+
+  /**
+   * @brife Insert the new kv pair in the proper position of the array and size will increase if size<=max_size .
+   * Otherwise, the function just returns.
+   *
+   * @param key The key
+   * @param value The value
+   *
+   * @note Check the size with the max size before invocation.
+   */
+  void Insert(const KeyType &key, const ValueType &value, const KeyComparator &comparator);
+
+  void Remove(const KeyType &key, const KeyComparator &comparator);
 
 
+  /**
+   * @brief ExtractHalf return half of the elements which is useful in splitting.
+   *
+   * @return Half of the elements.
+   */
+  auto ExtractHalf() -> std::vector<MappingType>;
+
+  /**
+   * @brife Used for coalescing and let size be 0.
+   *
+   * @return All pairs.
+   */
+  auto ExtractAll() -> std::vector<MappingType>;
+  
+  void EmplaceBack(const std::vector<MappingType> &paris);
+  /**
+   * @brife Pop the last pair and decrease the size.
+   *
+   * @return The back pair.
+   */
+  auto PopBack() -> MappingType;
+
+  auto PopFront() -> MappingType;
+
+  inline auto Get() -> MappingType * { return array_; }
+  
  private:
   page_id_t next_page_id_;
   // Flexible array member for page data.
-  MappingType array_[1];
+  MappingType array_[LEAF_PAGE_SIZE];
 };
 
 }  // namespace bustub

@@ -76,4 +76,16 @@
 
 - 1. src/include/storage/page/b_plus_tree_internal_page.h
 - 2. src/storage/page/b_plus_tree_internal_page.cpp
+- 3. src/storage/page/b_plus_tree_leaf_page.cpp
+- 4. src/storage/page/b_plus_tree_leaf_page.h
+- 5. src/storage/page/b_plus_tree_page.cpp
+- 6. src/storage/page/b_plus_tree_page.h
+
+- 当前测试：![alt text](image-8.png)
+```cpp
+[  FAILED  ] 2 tests, listed below:
+[  FAILED  ] BPlusTreeConcurrentTest.InsertTest2
+[  FAILED  ] BPlusTreeConcurrentTest.DeleteTest1
+```
+两个错误部分
 
