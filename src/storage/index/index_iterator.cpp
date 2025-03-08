@@ -2,7 +2,9 @@
  * index_iterator.cpp
  */
 #include <cassert>
+#include "buffer/buffer_pool_manager.h"
 #include "common/config.h"
+#include "storage/page/b_plus_tree_page.h"
 #include "storage/page/page.h"
 
 #include "storage/index/index_iterator.h"
@@ -13,38 +15,54 @@ namespace bustub {
  * NOTE: you can change the destructor/constructor method here
  * set your own input parameters
  */
-INDEX_TEMPLATE_ARGUMENTS
-INDEXITERATOR_TYPE::IndexIterator(BufferPoolManager *bpm, LeafPage *leaf, int index)
-    : bpm_(bpm), leaf_(leaf), index_(index) {}
 
 INDEX_TEMPLATE_ARGUMENTS
-INDEXITERATOR_TYPE::~IndexIterator() { bpm_->UnpinPage(leaf_->GetPageId(), false);}
+INDEXITERATOR_TYPE::IndexIterator(page_id_t begin_page_id, int begin_index, BufferPoolManager *buffer_pool_manager)
+    : page_id_(begin_page_id), index_(begin_index), buffer_pool_manager_(buffer_pool_manager) {}
 
 INDEX_TEMPLATE_ARGUMENTS
-auto INDEXITERATOR_TYPE::IsEnd() -> bool { 
-    return (leaf_->GetNextPageId() == INVALID_PAGE_ID) && (index_ == (leaf_->GetSize() - 1));
+INDEXITERATOR_TYPE::~IndexIterator() = default;  // NOLINT
+
+INDEX_TEMPLATE_ARGUMENTS
+auto INDEXITERATOR_TYPE::IsEnd() -> bool { return page_id_ == INVALID_PAGE_ID && index_ == 0; }
+
+INDEX_TEMPLATE_ARGUMENTS
+auto INDEXITERATOR_TYPE::operator*() -> const MappingType & {
+    // Fetch every time to keep the pointer dereference semantics
+    auto page = reinterpret_cast<LeafPage *>(buffer_pool_manager_->FetchPage(page_id_));
+    pair_.first = page->KeyAt(index_);
+    pair_.second = page->ValueAt(index_);
+    buffer_pool_manager_->UnpinPage(page->GetPageId(), false);
+    return pair_;
 }
 
 INDEX_TEMPLATE_ARGUMENTS
-auto INDEXITERATOR_TYPE::operator*() -> const MappingType & { 
-    std::cout << "Get iterator value." << std::endl;
-    return leaf_->GetItem(index_);
+auto INDEXITERATOR_TYPE::operator++() -> INDEXITERATOR_TYPE & {
+    // 获取page
+  auto page = reinterpret_cast<LeafPage *>(buffer_pool_manager_->FetchPage(page_id_));
+  if ((index_ + 1) < page->GetSize()) {
+    ++index_;
+  } else if (page->GetNextPageId() != INVALID_PAGE_ID) {
+    page_id_ = page->GetNextPageId();
+    index_ = 0;
+  } else {
+    page_id_ = INVALID_PAGE_ID;
+    index_ = 0;
+  }
+  // 解除pin
+  buffer_pool_manager_->UnpinPage(page->GetPageId(), false);
+  return *this;
 }
 
 INDEX_TEMPLATE_ARGUMENTS
-auto INDEXITERATOR_TYPE::operator++() -> INDEXITERATOR_TYPE & { 
-    std::cout << "Get iterator next." << std::endl;
-    if (index_ == (leaf_->GetSize() - 1) && leaf_->GetNextPageId() != INVALID_PAGE_ID) {
-     page_id_t page_id = leaf_->GetNextPageId();
-     bpm_->UnpinPage(leaf_->GetPageId(), false);
-     Page *page = bpm_->FetchPage(page_id);
-     leaf_ = reinterpret_cast<LeafPage *>(page->GetData());
-     index_ = 0;   
-    } else {
-        index_++;
-    }
-    return *this;
- }
+auto INDEXITERATOR_TYPE::operator!=(const IndexIterator<KeyType, ValueType, KeyComparator> &itr) const -> bool {
+  return (page_id_ != itr.page_id_) || (index_ != itr.index_);
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+auto INDEXITERATOR_TYPE::operator==(const IndexIterator<KeyType, ValueType, KeyComparator> &itr) const -> bool {
+  return (page_id_ == itr.page_id_) && (index_ == itr.index_);
+}
 
 template class IndexIterator<GenericKey<4>, RID, GenericComparator<4>>;
 

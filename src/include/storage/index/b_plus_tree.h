@@ -10,15 +10,18 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
+#include <memory>
 #include <queue>
 #include <string>
 #include <vector>
 
+#include "common/config.h"
 #include "concurrency/transaction.h"
 #include "storage/index/index_iterator.h"
 #include "storage/page/b_plus_tree_internal_page.h"
 #include "storage/page/b_plus_tree_leaf_page.h"
 #include "storage/page/b_plus_tree_page.h"
+#include "storage/page/page.h"
 
 namespace bustub {
 
@@ -38,6 +41,9 @@ INDEX_TEMPLATE_ARGUMENTS
 class BPlusTree {
   using InternalPage = BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator>;
   using LeafPage = BPlusTreeLeafPage<KeyType, ValueType, KeyComparator>;
+  using LatchedPageContainer = std::list<Page *>;
+  enum class SearchMode { Find, Insert, Delete };
+  enum class UseMode { Read, Write };
 
  public:
   explicit BPlusTree(std::string name, BufferPoolManager *buffer_pool_manager, const KeyComparator &comparator,
@@ -75,7 +81,61 @@ class BPlusTree {
   // read data from file and remove one by one
   void RemoveFromFile(const std::string &file_name, Transaction *transaction = nullptr);
 
+
  private:
+auto UsePage(page_id_t page_id, UseMode mode, Transaction *transaction) -> Page *;
+
+  void DisusePage(Page *page, UseMode mode);
+
+  void DeletePage(Page *page, UseMode mode, Transaction *transaction);
+
+  /**
+   * @brief Find the leaf to which the key should go.
+   *
+   * @return The pointer to the page if there is a potentially proper page the key should go,
+   * nullptr if not.
+   *
+   * @note Remember to `unpin` the page after accessing/modifying the page.
+   */
+  auto PessimisticSearch(const KeyType &key, SearchMode mode, Transaction *transaction = nullptr,
+                         LatchedPageContainer *latched_pages = nullptr) -> LeafPage *;
+
+  auto OptimisticSearch(const KeyType &key, SearchMode mode, Transaction *transaction, bool &success) -> LeafPage *;
+
+  /**
+   * @brief Insert the kv pair into the parent node of `node`.
+   *
+   * @param node The same level node with value.
+   * @param key The key of the kv pair
+   * @param value The value of the kv pair
+   */
+  void InsertInParent(LeafPage *node, const KeyType &key, BPlusTreePage *other_node,
+                      LatchedPageContainer *latched_pages, Transaction *transaction);
+
+  /**
+   * @brife Remove the entry associated with the key in the node.
+   * @param node
+   * @param key
+   *
+   * @note Do NOT unpin the node page before invoking this function.
+   */
+  void RemoveEntry(BPlusTreePage *node, const KeyType &key, LatchedPageContainer *latched_pages,
+                   Transaction *transaction);
+
+  /**
+   * @brife Coalesce the entries in node to predecessor.
+   */
+  void Coalesce(BPlusTreePage *predecessor, BPlusTreePage *node, const KeyType &between_key,
+                LatchedPageContainer *latched_pages, Transaction *transaction);
+
+  auto inline ToRawPage(BPlusTreePage *tree_page) -> Page * { return reinterpret_cast<Page *>(tree_page); };
+
+  auto inline ToTreePage(Page *page) -> BPlusTreePage * { return reinterpret_cast<BPlusTreePage *>(page); }
+
+  auto inline ToLeaf(BPlusTreePage *node) -> LeafPage * { return reinterpret_cast<LeafPage *>(node); }
+
+  auto inline ToInternal(BPlusTreePage *node) -> InternalPage * { return reinterpret_cast<InternalPage *>(node); }
+
   void UpdateRootPageId(int insert_record = 0);
 
   /* Debug Routines for FREE!! */
@@ -83,22 +143,12 @@ class BPlusTree {
 
   void ToString(BPlusTreePage *page, BufferPoolManager *bpm) const;
 
-  auto FindLeaf(const KeyType &key) const -> Page *;
+  auto KeyToString(const KeyType &key) const -> std::string;
 
-  auto Split(BPlusTreePage *page) -> BPlusTreePage *;
+  auto ValueToString(const ValueType &value) const -> std::string;
 
-  void InsertToParent(BPlusTreePage *old_page, BPlusTreePage *split_page, const KeyType &split_key);
+  void NodeChangeParent(page_id_t page_id, page_id_t parent_id, LatchedPageContainer *latched_pages);
 
-  template<typename Node>
-  auto RedistributeLeft(Node *sibling_node, Node *target_node, InternalPage *parent, int index) -> void;
-
-  template<typename Node>
-  auto RedistributeRight(Node *sibling_node, Node *target_node, InternalPage *parent, int index) -> void;
-
-  template<typename Node>
-  auto Merge(Node *dst_node, Node *src_node, InternalPage *parent, int index) -> void;
-
-  auto RedistributeOrMerge(BPlusTreePage *node) -> void;
 
   // member variable
   std::string index_name_;
@@ -107,6 +157,8 @@ class BPlusTree {
   KeyComparator comparator_;
   int leaf_max_size_;
   int internal_max_size_;
+  // Used for uniformly handle the unlatch case
+  std::unique_ptr<Page> root_page_id_page_;
 };
 
 }  // namespace bustub

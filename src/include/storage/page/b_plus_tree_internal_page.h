@@ -53,7 +53,7 @@ class BPlusTreeInternalPage : public BPlusTreePage {
  public:
   // must call initialize method after "create" a new node
   void Init(page_id_t page_id, page_id_t parent_id = INVALID_PAGE_ID, int max_size = INTERNAL_PAGE_SIZE);
-
+  // 基本的访问
   auto KeyAt(int index) const -> KeyType;
   void SetKeyAt(int index, const KeyType &key);
   auto ValueAt(int index) const -> ValueType;
@@ -93,12 +93,16 @@ class BPlusTreeInternalPage : public BPlusTreePage {
     */
   void InsertAfter(const ValueType &value, const KeyType &new_key, const ValueType &new_value);
 
+  // 在尾部插入键值对
   void PushBack(const KeyType &key, const ValueType &value);
 
+  // 在头部插入键值对
   void PushFront(const ValueType &value);
 
+  // 在指定位置插入键值对
   void Put(const ValueType &left, const KeyType &key, const ValueType &right);
 
+  // 提取一半的键值对
   auto ExtractHalf() -> std::vector<MappingType>;
 
   /**
@@ -108,8 +112,10 @@ class BPlusTreeInternalPage : public BPlusTreePage {
     */
   auto ExtractAll() -> std::vector<MappingType>;
 
+  // 插入多个键值对
   void EmplaceBack(const std::vector<MappingType> &pairs);
 
+  // 删除指定键值对
   void Remove(const KeyType &key, const KeyComparator &comparator);
 
   /**
@@ -118,14 +124,18 @@ class BPlusTreeInternalPage : public BPlusTreePage {
     */
   auto PopBack() -> MappingType;
 
+  // 删除第一个pair
   auto PopFront() -> MappingType;
 
+  // 获取数组
   inline auto Get() -> MappingType * { return array_; }
 
  private:
+  // 将键转换为字符串
   auto KeyToString(const KeyType &key) const -> std::string;
 
   // Flexible array member for page data.
   MappingType array_[LEAF_PAGE_SIZE];
 };
+
 }  // namespace bustub

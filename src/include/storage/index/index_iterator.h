@@ -14,6 +14,7 @@
  */
 #pragma once
 #include "buffer/buffer_pool_manager.h"
+#include "common/config.h"
 #include "storage/page/b_plus_tree_leaf_page.h"
 
 namespace bustub {
@@ -27,7 +28,7 @@ class IndexIterator {
 
  public:
   // you may define your own constructor based on your member variables
-  IndexIterator(BufferPoolManager *bpm, LeafPage *leaf, int index = 0);
+  IndexIterator(page_id_t begin_page, int begin_index, BufferPoolManager *buffer_pool_manager);
   ~IndexIterator();  // NOLINT
 
   auto IsEnd() -> bool;
@@ -36,19 +37,16 @@ class IndexIterator {
 
   auto operator++() -> IndexIterator &;
 
-  auto operator==(const IndexIterator &itr) const -> bool { 
-    return leaf_->GetPageId() == itr.leaf_->GetPageId() && index_ == itr.index_;
-   }
+  auto operator==(const IndexIterator &itr) const -> bool;
 
-  auto operator!=(const IndexIterator &itr) const -> bool { 
-    return leaf_->GetPageId() != itr.leaf_->GetPageId() || index_ != itr.index_;  
-  }
+  auto operator!=(const IndexIterator &itr) const -> bool;
 
  private:
   // add your own private member variables here
-  BufferPoolManager *bpm_;
-  LeafPage *leaf_;
+  page_id_t page_id_;
   int index_;
+  BufferPoolManager *buffer_pool_manager_;
+  MappingType pair_;
 };
 
 }  // namespace bustub
