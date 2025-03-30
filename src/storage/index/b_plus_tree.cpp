@@ -94,6 +94,7 @@ INDEX_TEMPLATE_ARGUMENTS
 auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transaction *transaction) -> bool {
   THREAD_DEBUG_LOG("(thread %ld) Enter | Parameters: key=%s,value=%s", DEBUG_THREAD_ID, KeyToString(key).c_str(),
                    ValueToString(value).c_str());
+  // 创建一个用于管理页面的智能指针，当超出作用域时自动释放
   auto latched_pages = std::unique_ptr<LatchedPageContainer, std::function<void(LatchedPageContainer *)>>(
       new LatchedPageContainer, [this](LatchedPageContainer *object) {
         for (auto &page : *object) {
@@ -108,6 +109,7 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
       ToRawPage(leaf)->WUnlatch();
       buffer_pool_manager_->UnpinPage(leaf->GetPageId(), false);
     }
+    // 使用悲观搜索获取叶子节点
     leaf = PessimisticSearch(key, SearchMode::Insert, transaction, latched_pages.get());
   } else if (leaf != nullptr) {
     latched_pages->push_back(ToRawPage(leaf));
@@ -158,6 +160,7 @@ void BPLUSTREE_TYPE::InsertInParent(LeafPage *node, const KeyType &key, BPlusTre
                                     LatchedPageContainer *latched_pages, Transaction *transaction) {
   auto value = other_node->GetPageId();
   if (node->GetPageId() == GetRootPageId()) {
+    // 这一部分相当于创建一个新的根节点，让这个新节点链接上node和other_node
     page_id_t new_root_id;
     auto new_root = reinterpret_cast<InternalPage *>(buffer_pool_manager_->NewPage(&new_root_id));
     new_root->Init(new_root_id, INVALID_PAGE_ID, internal_max_size_);
@@ -171,17 +174,22 @@ void BPLUSTREE_TYPE::InsertInParent(LeafPage *node, const KeyType &key, BPlusTre
     buffer_pool_manager_->UnpinPage(value, true);
     return;
   }
+  // 非根节点的情况下，找到父节点
   auto parent = ToInternal(ToTreePage(*std::find_if(latched_pages->begin(), latched_pages->end(), [node](Page *page) {
     return page->GetPageId() == node->GetParentPageId();
   })));
+  // 如果父节点满了，需要进行分裂，创建新内部节点 new_internal，将 pairs 分成两半，左半部分保留在 parent，右半部分放入 new_internal。
   if (parent->GetSize() == parent->GetMaxSize()) {
     page_id_t new_internal_id;
     auto new_internal = reinterpret_cast<InternalPage *>(buffer_pool_manager_->NewPage(&new_internal_id));
     auto pairs = parent->ExtractAll();
+    // 将parent的所有pair都拿出来，然后再把要插入的key和value插入到pairs中
     pairs.insert(std::find_if(pairs.cbegin(), pairs.cend(),
                               [val = node->GetPageId()](const auto &pair) { return pair.second == val; }) +
                      1,
                  std::make_pair(key, value));
+    // 左半部分保留在 parent
+    // 右半部分放入 new_internal
     auto right_first_index = parent->GetMinSize();
     auto right_first_key = pairs[right_first_index].first;
     std::vector<std::pair<KeyType, page_id_t>> left_pairs{pairs.cbegin(), pairs.cbegin() + right_first_index};
@@ -190,15 +198,20 @@ void BPLUSTREE_TYPE::InsertInParent(LeafPage *node, const KeyType &key, BPlusTre
     new_internal->Init(new_internal_id, INVALID_PAGE_ID, internal_max_size_);
     new_internal->SetPageType(IndexPageType::INTERNAL_PAGE);
     new_internal->EmplaceBack(right_pairs);
+    // 如果key小于right_first_key，则将value插入到parent中
     if (comparator_(key, right_first_key) < 0) {
       NodeChangeParent(value, parent->GetPageId(), latched_pages);
     }
+    // 将right_pairs中的所有page_id插入到new_internal中
     for (const auto &[_, page_id] : right_pairs) {
       NodeChangeParent(page_id, new_internal->GetPageId(), latched_pages);
     }
+    // 释放value
     buffer_pool_manager_->UnpinPage(value, true);
+    // 递归插入
     InsertInParent(reinterpret_cast<LeafPage *>(parent), right_first_key, new_internal, latched_pages, transaction);
   } else {
+    // 如果父节点没有满，则直接插入
     other_node->SetParentPageId(parent->GetPageId());
     parent->InsertAfter(node->GetPageId(), key, value);
     buffer_pool_manager_->UnpinPage(value, true);
@@ -215,6 +228,7 @@ void BPLUSTREE_TYPE::InsertInParent(LeafPage *node, const KeyType &key, BPlusTre
  * delete entry from leaf page. Remember to deal with redistribute or merge if
  * necessary.
  */
+
 
 INDEX_TEMPLATE_ARGUMENTS
 void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
@@ -246,14 +260,18 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
   THREAD_DEBUG_LOG("(thread %ld) Return", DEBUG_THREAD_ID);
 }
 
+// 删除叶子节点中的key
 INDEX_TEMPLATE_ARGUMENTS
 void BPLUSTREE_TYPE::RemoveEntry(BPlusTreePage *node, const KeyType &key, LatchedPageContainer *latched_pages,
                                  Transaction *transaction) {
   THREAD_DEBUG_LOG("(thread %ld) Enter| Parameters: node_page_id=%d, key=%s", DEBUG_THREAD_ID, node->GetPageId(),
                    KeyToString(key).c_str());
+  // 如果node是叶子节点，则调用叶子节点的Remove方法，否则调用内部节点的Remove方法
   node->IsLeafPage() ? ToLeaf(node)->Remove(key, comparator_) : ToInternal(node)->Remove(key, comparator_);
   // N is the root and N has only one remaining child
+  // 如果是根节点
   if (node->IsRootPage()) {
+    // 如果根节点只有一个子节点，则将子节点设置为新的根节点
     if (node->GetSize() == 1 && !node->IsLeafPage()) {
       THREAD_DEBUG_LOG("(thread %ld) execution branch 1", DEBUG_THREAD_ID);
       BPlusTreePage *child_node;
@@ -262,24 +280,31 @@ void BPLUSTREE_TYPE::RemoveEntry(BPlusTreePage *node, const KeyType &key, Latche
                                        THREAD_DEBUG_LOG("(thread %ld) want page id %d", DEBUG_THREAD_ID, want_page_id);
                                        return page->GetPageId() == want_page_id;
                                      });
+      // 如果child_node不在latched_pages中，则将child_node加入到latched_pages中
       if (found_iter == latched_pages->end()) {
         child_node = ToTreePage(UsePage(ToInternal(node)->ValueAt(0), UseMode::Write, transaction));
         latched_pages->push_back(ToRawPage(child_node));
       } else {
         child_node = ToTreePage(*found_iter);
       }
+      // 设置child_node的父节点为INVALID_PAGE_ID
       child_node->SetParentPageId(INVALID_PAGE_ID);
+      // 将child_node设置为新的根节点
       root_page_id_ = child_node->GetPageId();
+      // 更新根节点
       UpdateRootPageId(child_node->GetPageId());
+      // 断言child_node在latched_pages中
       BUSTUB_ASSERT(std::find_if(latched_pages->begin(), latched_pages->end(),
                                  [page_id = node->GetPageId()](Page *page) { return page_id == page->GetPageId(); }) !=
                         latched_pages->end(),
                     "unexpected case");
+      // 删除node
       latched_pages->erase(
           std::remove_if(latched_pages->begin(), latched_pages->end(),
                          [page_id = node->GetPageId()](Page *page) { return page_id == page->GetPageId(); }));
       DeletePage(ToRawPage(node), UseMode::Write, transaction);
     } else if (node->GetSize() == 0) {
+      // 如果node没有key，则删除node
       latched_pages->erase(
           std::remove_if(latched_pages->begin(), latched_pages->end(),
                          [page_id = node->GetPageId()](Page *page) { return page_id == page->GetPageId(); }));
@@ -287,20 +312,29 @@ void BPLUSTREE_TYPE::RemoveEntry(BPlusTreePage *node, const KeyType &key, Latche
       root_page_id_ = INVALID_PAGE_ID;
     }
   } else if (node->GetSize() < node->GetMinSize()) {
+    // 如果node的key小于min_size，则需要进行合并或重新分配，且node不是根节点
     THREAD_DEBUG_LOG("(thread %ld) execution branch 2", DEBUG_THREAD_ID);
+    // 找到node的父节点
     auto parent_iter = std::find_if(
         latched_pages->begin(), latched_pages->end(),
         [want_page_id = node->GetParentPageId()](Page *page) { return page->GetPageId() == want_page_id; });
+    // 断言parent_iter在latched_pages中
     BUSTUB_ASSERT(parent_iter != latched_pages->end(), "unexpected case");
+    // 获取父节点
     auto parent_node = ToInternal(ToTreePage(*(parent_iter)));
     // same level, should not be in the latch_pages.
+    // 获取node的相邻节点
     auto adjacent_node = ToTreePage(UsePage(parent_node->Adjacent(node->GetPageId()), UseMode::Write, transaction));
+    // 将相邻节点加入到latched_pages中
     latched_pages->insert(
         std::find_if(latched_pages->begin(), latched_pages->end(),
                      [page_id = node->GetPageId()](Page *page) { return page->GetPageId() == page_id; }),
         ToRawPage(adjacent_node));
+    // 获取node和相邻节点之间的key的index
     auto between_key_index = parent_node->BetweenKeyIndex(node->GetPageId(), adjacent_node->GetPageId());
+    // 获取node和相邻节点之间的key
     auto between_key = parent_node->KeyAt(between_key_index);
+    // 判断相邻节点是否是node的前驱节点
     auto adjacent_is_predecessor = parent_node->IsPredecessor(node->GetPageId(), adjacent_node->GetPageId());
     THREAD_DEBUG_LOG(
         "(thread %ld) adjacent(%s,%d) %s node(%s,%d)", DEBUG_THREAD_ID,
@@ -313,67 +347,101 @@ void BPLUSTREE_TYPE::RemoveEntry(BPlusTreePage *node, const KeyType &key, Latche
             .c_str(),
         node->GetPageId());
 
+    // 计算单个节点的最大容量
     // Coalesce: entries in N and N′ can fit in a single node
     auto single_node_max = node->IsLeafPage() ? node->GetMaxSize() - 1 : node->GetMaxSize();
+    // 如果两个系欸但合并后小于等于single_node_max，则进行合并
     if ((adjacent_node->GetSize() + node->GetSize()) <= single_node_max) {
+      // 根据前驱/后继关系选择合并方向
       if (adjacent_is_predecessor) {
         Coalesce(adjacent_node, node, between_key, latched_pages, transaction);
       } else {
         Coalesce(node, adjacent_node, between_key, latched_pages, transaction);
       }
+      // 递归删除
       RemoveEntry(parent_node, between_key, latched_pages, transaction);
-    } else /* Redistribution: borrow an entry from N′ */ {
+    } else /* Redistribution: borrow an entry from N′ */ { // 如果两个节点合并后大于single_node_max，则进行重新分配
       if (adjacent_is_predecessor) {
         THREAD_DEBUG_LOG("(thread %ld) redistribute - page %d <- page %d", DEBUG_THREAD_ID, node->GetPageId(),
                          adjacent_node->GetPageId());
+        // 从前驱节点借元素
         if (!node->IsLeafPage()) {
+          // 内部节点的重分配
           auto pair = ToInternal(adjacent_node)->PopBack();
           ToInternal(node)->Get()[0].first = between_key;
           ToInternal(node)->PushFront(pair.second);
           parent_node->SetKeyAt(between_key_index, pair.first);
           NodeChangeParent(pair.second, node->GetPageId(), latched_pages);
         } else {
+          // 叶子节点的重分配
           auto pair = ToLeaf(adjacent_node)->PopBack();
           ToLeaf(node)->Insert(pair.first, pair.second, comparator_);
           parent_node->SetKeyAt(between_key_index, pair.first);
         }
       } else /* Symmetric case*/ {
+        // 从后继节点借元素
         if (!node->IsLeafPage()) {
-          auto pair = ToInternal(adjacent_node)->PopFront();
-          ToInternal(node)->PushBack(pair.first, pair.second);
-          parent_node->SetKeyAt(between_key_index, ToInternal(adjacent_node)->Get()[0].first);
-          NodeChangeParent(pair.second, node->GetPageId(), latched_pages);
+          // 内部节点的重新分配
+          auto pair = ToInternal(adjacent_node)->PopFront();  // 取出后继节点的第一个元素
+          ToInternal(node)->PushBack(pair.first, pair.second);  // 插入到当前节点末尾
+          parent_node->SetKeyAt(between_key_index, ToInternal(adjacent_node)->Get()[0].first);  // 更新父节点分隔键
+          NodeChangeParent(pair.second, node->GetPageId(), latched_pages);  // 更新子节点的父指针
         } else {
-          auto pair = ToLeaf(adjacent_node)->PopFront();
-          ToLeaf(node)->Insert(pair.first, pair.second, comparator_);
-          parent_node->SetKeyAt(between_key_index, ToLeaf(adjacent_node)->KeyAt(0));
+          // 叶子节点的重分配
+          auto pair = ToLeaf(adjacent_node)->PopFront();  // 取出后继节点的第一个元素
+          ToLeaf(node)->Insert(pair.first, pair.second, comparator_);   // 插入到当前节点
+          parent_node->SetKeyAt(between_key_index, ToLeaf(adjacent_node)->KeyAt(0));  // 更新父节点分隔键
         }
       }
     }
   }
 }
 
+//将 node 这个节点的所有元素合并(coalesce)到它的前驱节点 predecessor 中，然后删除 node 节点本身。
 INDEX_TEMPLATE_ARGUMENTS
 void BPLUSTREE_TYPE::Coalesce(bustub::BPlusTreePage *predecessor, bustub::BPlusTreePage *node,
                               const KeyType &between_key, LatchedPageContainer *latched_pages,
                               Transaction *transaction) {
+  // 输出调试日志，打印正在做的 coalesce 操作以及涉及的页号
   THREAD_DEBUG_LOG("(thread %ld) coalesce page %d to page %d", DEBUG_THREAD_ID, node->GetPageId(),
                    predecessor->GetPageId());
+  // 1. 根据 node 是否是叶子节点， 做不同的处理
   if (!node->IsLeafPage()) {
+    // ---- 情形 A：node 是内部节点(InternalPage) ----
+    // (a) 从 node 中取出它的所有 (key, page_id) 对
     auto pairs = ToInternal(node)->ExtractAll();
+
+    // pairs[0] 的 key 通常是无意义的“占位”，这里覆盖成 parent 里拿下来的 between_key
+    // 这是因为在父节点处，between_key 是分隔 node 和 predecessor 的那把 key。
     pairs[0].first = between_key;
+
+    // (b) 把这些 pairs 整体追加到 predecessor（同为 InternalPage）里
     ToInternal(predecessor)->EmplaceBack(pairs);
+
+    // (c) 因为这些 child 原来指向 node 这个内部节点，现在合并到 predecessor 后，
+    //     必须更新它们各自的父指针，让它们都指向 predecessor
     for (const auto &[_, page_id] : pairs) {
       NodeChangeParent(page_id, predecessor->GetPageId(), latched_pages);
     }
   } else {
+    // ---- 情形 B：node 是叶子节点(LeafPage) ----
+
+    // (a) 从 node 中取出它所有 (key, value) 对
     auto pairs = ToLeaf(node)->ExtractAll();
+
+    // (b) 把这些键值对追加到 predecessor（它也是一个叶子节点）里
     ToLeaf(predecessor)->EmplaceBack(pairs);
+
+    // (c) 还需要把 predecessor 的 next 指针改成 node 的 next 指针，
+    //     这样就把 node 自身从叶子链表中跳过了
     ToLeaf(predecessor)->SetNextPageId(ToLeaf(node)->GetNextPageId());
   }
+  // 2. 从 latch 列表 latched_pages 中把 node 这个页面移除，
+  //    因为它马上要被删除，不再需要保持锁。
   latched_pages->erase(
       std::remove_if(latched_pages->begin(), latched_pages->end(),
                      [page_id = node->GetPageId()](Page *page) { return page_id == page->GetPageId(); }));
+  // 3. 最后真正删除 node 这个页面(从缓冲池和磁盘上都清掉)
   DeletePage(ToRawPage(node), UseMode::Write, transaction);
 }
 

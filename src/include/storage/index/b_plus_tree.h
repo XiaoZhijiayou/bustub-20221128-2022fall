@@ -83,7 +83,8 @@ class BPlusTree {
 
 
  private:
-auto UsePage(page_id_t page_id, UseMode mode, Transaction *transaction) -> Page *;
+ 
+  auto UsePage(page_id_t page_id, UseMode mode, Transaction *transaction) -> Page *;
 
   void DisusePage(Page *page, UseMode mode);
 
