@@ -14,10 +14,15 @@
 
 #include <memory>
 #include <utility>
+#include <vector>
 
+#include "catalog/catalog.h"
+#include "catalog/schema.h"
+#include "common/rid.h"
 #include "execution/executor_context.h"
 #include "execution/executors/abstract_executor.h"
 #include "execution/plans/insert_plan.h"
+#include "storage/table/table_heap.h"
 #include "storage/table/tuple.h"
 
 namespace bustub {
@@ -49,14 +54,31 @@ class InsertExecutor : public AbstractExecutor {
    * NOTE: InsertExecutor::Next() does not use the `rid` out-parameter.
    * NOTE: InsertExecutor::Next() returns true with number of inserted rows produced only once.
    */
+  
+   /**
+    * 返回插入到表中的行数。
+    * @param[out] tuple 一个整数元组，表示插入到表中的行数
+    * @param[out] rid 下一个由插入产生的元组的 RID（忽略，不使用）
+    * @return 如果产生了元组则返回 `true`，如果没有更多元组则返回 `false`
+    *
+    * 注意：InsertExecutor::Next() 不会使用 `rid` 输出参数。
+    * 注意：InsertExecutor::Next() 只会一次性返回插入的行数，并返回 true。
+    */
+
   auto Next([[maybe_unused]] Tuple *tuple, RID *rid) -> bool override;
 
   /** @return The output schema for the insert */
   auto GetOutputSchema() const -> const Schema & override { return plan_->OutputSchema(); };
 
  private:
+  bool done_;
   /** The insert plan node to be executed*/
   const InsertPlanNode *plan_;
+  std::unique_ptr<AbstractExecutor> child_executor_;
+  TableHeap *table_;
+  std::unique_ptr<Schema> schema_;
+  std::unique_ptr<std::vector<IndexInfo *>> indexes_;
+  std::vector<RID> locked_rids_;
 };
 
 }  // namespace bustub

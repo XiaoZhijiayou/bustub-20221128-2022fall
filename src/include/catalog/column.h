@@ -25,7 +25,7 @@
 
 namespace bustub {
 class AbstractExpression;
-
+/*数据库模式中单个列的属性*/
 class Column {
   friend class Schema;
 
@@ -125,18 +125,23 @@ class Column {
   }
 
   /** Column name. */
+  /** 存储列的名称 */
   std::string column_name_;
 
   /** Column value's type. */
+  /** 存储列的数据类型（例如，INTEGER、BIGINT、VARCHAR等） */
   TypeId column_type_;
 
   /** For a non-inlined column, this is the size of a pointer. Otherwise, the size of the fixed length column. */
+  /** 如果列数据是固定长度的，该变量存储每个记录使用的字节数；对于变长列，该值通常存储指针的大小。 */
   uint32_t fixed_length_;
 
   /** For an inlined column, 0. Otherwise, the length of the variable length column. */
+  /** 对于变长列（如 VARCHAR），该变量存储实际的最大长度；对于固定长度列，这个值为 0 */
   uint32_t variable_length_{0};
 
   /** Column offset in the tuple. */
+  /** 列在元组中的偏移位置，用于从一条记录中定位到该列的数据 */
   uint32_t column_offset_{0};
 };
 

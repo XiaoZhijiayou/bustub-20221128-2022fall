@@ -42,16 +42,19 @@ namespace bustub {
  *    |_________________________^
  *
  **/
+ // 事务生命周期状态
 enum class TransactionState { GROWING, SHRINKING, COMMITTED, ABORTED };
 
 /**
  * Transaction isolation level.
  */
+ // 事务隔离级别
 enum class IsolationLevel { READ_UNCOMMITTED, REPEATABLE_READ, READ_COMMITTED };
 
 /**
  * Type of write operation.
  */
+ // 事务操作的类型
 enum class WType { INSERT = 0, DELETE, UPDATE };
 
 class TableHeap;
@@ -62,6 +65,7 @@ using index_oid_t = uint32_t;
 /**
  * WriteRecord tracks information related to a write.
  */
+ // 记录与表相关的写操作，包括插入、删除和更新操作
 class TableWriteRecord {
  public:
   TableWriteRecord(RID rid, WType wtype, const Tuple &tuple, TableHeap *table)
@@ -78,6 +82,7 @@ class TableWriteRecord {
 /**
  * WriteRecord tracks information related to a write.
  */
+ // 记录与索引相关的写操作，跟踪索引的修改。
 class IndexWriteRecord {
  public:
   IndexWriteRecord(RID rid, table_oid_t table_oid, WType wtype, const Tuple &tuple, index_oid_t index_oid,
@@ -85,33 +90,33 @@ class IndexWriteRecord {
       : rid_(rid), table_oid_(table_oid), wtype_(wtype), tuple_(tuple), index_oid_(index_oid), catalog_(catalog) {}
 
   /** The rid is the value stored in the index. */
-  RID rid_;
+  RID rid_;                           // 数据库中行记录的标识
   /** Table oid. */
-  table_oid_t table_oid_;
+  table_oid_t table_oid_;             // 表的唯一标识符
   /** Write type. */
-  WType wtype_;
+  WType wtype_;                       // 操作类型
   /** The tuple is used to construct an index key. */
-  Tuple tuple_;
+  Tuple tuple_;                       // 用于构建索引的元组。
   /** The old tuple is only used for the update operation. */
-  Tuple old_tuple_;
+  Tuple old_tuple_;                   // 仅在更新操作中使用的旧元组
   /** Each table has an index list, this is the identifier of an index into the list. */
-  index_oid_t index_oid_;
+  index_oid_t index_oid_;             // 索引的唯一标识符
   /** The catalog contains metadata required to locate index. */
-  Catalog *catalog_;
+  Catalog *catalog_;                  // 指向目录对象的指针，提供索引元数据
 };
 
 /**
  * Reason to a transaction abortion
  */
 enum class AbortReason {
-  LOCK_ON_SHRINKING,
-  UPGRADE_CONFLICT,
-  LOCK_SHARED_ON_READ_UNCOMMITTED,
-  TABLE_LOCK_NOT_PRESENT,
-  ATTEMPTED_INTENTION_LOCK_ON_ROW,
-  TABLE_UNLOCKED_BEFORE_UNLOCKING_ROWS,
-  INCOMPATIBLE_UPGRADE,
-  ATTEMPTED_UNLOCK_BUT_NO_LOCK_HELD
+  LOCK_ON_SHRINKING,                      // 尝试在事务处于 SHRINKING 状态时获取锁。
+  UPGRADE_CONFLICT,                       // 尝试升级锁时发生冲突。
+  LOCK_SHARED_ON_READ_UNCOMMITTED,        // 在 READ_UNCOMMITTED 隔离级别下尝试获取共享锁。 
+  TABLE_LOCK_NOT_PRESENT,                 // 表锁不存在时尝试操作
+  ATTEMPTED_INTENTION_LOCK_ON_ROW,        // 在行级锁上尝试获取意图锁
+  TABLE_UNLOCKED_BEFORE_UNLOCKING_ROWS,   // 尝试在释放表锁之前释放行锁
+  INCOMPATIBLE_UPGRADE,                   // 尝试进行不兼容的锁升级
+  ATTEMPTED_UNLOCK_BUT_NO_LOCK_HELD       // 尝试释放未持有的锁
 };
 
 /**
@@ -325,43 +330,43 @@ class Transaction {
 
  private:
   /** The current transaction state. */
-  TransactionState state_{TransactionState::GROWING};
+  TransactionState state_{TransactionState::GROWING};               // 事务当前状态（使用 TransactionState 枚举）。
   /** The isolation level of the transaction. */
-  IsolationLevel isolation_level_;
+  IsolationLevel isolation_level_;                                  // 事务的隔离级别（IsolationLevel 枚举）
   /** The thread ID, used in single-threaded transactions. */
-  std::thread::id thread_id_;
+  std::thread::id thread_id_;                                       // 事务执行的线程 ID
   /** The ID of this transaction. */
-  txn_id_t txn_id_;
+  txn_id_t txn_id_;                                                 // 事务的id
 
   /** The undo set of table tuples. */
-  std::shared_ptr<std::deque<TableWriteRecord>> table_write_set_;
+  std::shared_ptr<std::deque<TableWriteRecord>> table_write_set_;   // 表的写操作
   /** The undo set of indexes. */
-  std::shared_ptr<std::deque<IndexWriteRecord>> index_write_set_;
+  std::shared_ptr<std::deque<IndexWriteRecord>> index_write_set_;   // 索引的写操作
   /** The LSN of the last record written by the transaction. */
   lsn_t prev_lsn_;
 
   std::mutex latch_;
 
   /** Concurrent index: the pages that were latched during index operation. */
-  std::shared_ptr<std::deque<Page *>> page_set_;
+  std::shared_ptr<std::deque<Page *>> page_set_;                    // 存储事务操作过的页面的指针
   /** Concurrent index: the page IDs that were deleted during index operation.*/
-  std::shared_ptr<std::unordered_set<page_id_t>> deleted_page_set_;
+  std::shared_ptr<std::unordered_set<page_id_t>> deleted_page_set_; // 存储事务中已删除的页面的 ID
 
   /** LockManager: the set of shared-locked tuples held by this transaction. */
-  std::shared_ptr<std::unordered_set<RID>> shared_lock_set_;
+  std::shared_ptr<std::unordered_set<RID>> shared_lock_set_;        // 存储事务持有的共享锁的记录标识符
   /** LockManager: the set of exclusive-locked tuples held by this transaction. */
-  std::shared_ptr<std::unordered_set<RID>> exclusive_lock_set_;
+  std::shared_ptr<std::unordered_set<RID>> exclusive_lock_set_;     // 存储事务持有的排他锁的记录标识符
 
   /** LockManager: the set of table locks held by this transaction. */
-  std::shared_ptr<std::unordered_set<table_oid_t>> s_table_lock_set_;
-  std::shared_ptr<std::unordered_set<table_oid_t>> x_table_lock_set_;
-  std::shared_ptr<std::unordered_set<table_oid_t>> is_table_lock_set_;
-  std::shared_ptr<std::unordered_set<table_oid_t>> ix_table_lock_set_;
-  std::shared_ptr<std::unordered_set<table_oid_t>> six_table_lock_set_;
+  std::shared_ptr<std::unordered_set<table_oid_t>> s_table_lock_set_; // 存储持有共享锁的表的标识符
+  std::shared_ptr<std::unordered_set<table_oid_t>> x_table_lock_set_; // 存储持有排他锁的表的标识符
+  std::shared_ptr<std::unordered_set<table_oid_t>> is_table_lock_set_; // 存储持有意图共享锁（Intention Shared Lock，IS）的表的标识符
+  std::shared_ptr<std::unordered_set<table_oid_t>> ix_table_lock_set_;  // 存储持有意图排他锁（Intention Exclusive Lock，IX）的表的标识符
+  std::shared_ptr<std::unordered_set<table_oid_t>> six_table_lock_set_; // 存储持有共享意图排他锁（Shared Intention Exclusive Lock，SIX）的表的标识符
 
   /** LockManager: the set of row locks held by this transaction. */
-  std::shared_ptr<std::unordered_map<table_oid_t, std::unordered_set<RID>>> s_row_lock_set_;
-  std::shared_ptr<std::unordered_map<table_oid_t, std::unordered_set<RID>>> x_row_lock_set_;
+  std::shared_ptr<std::unordered_map<table_oid_t, std::unordered_set<RID>>> s_row_lock_set_; // 存储持有共享行锁的记录标识符（RID），按表分组（table_oid_t
+  std::shared_ptr<std::unordered_map<table_oid_t, std::unordered_set<RID>>> x_row_lock_set_; // 存储持有排他行锁的记录标识符，按表分组
 };
 
 }  // namespace bustub

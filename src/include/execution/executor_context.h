@@ -63,6 +63,7 @@ class ExecutorContext {
  private:
   /** The transaction context associated with this executor context */
   Transaction *transaction_;
+  /** 与此执行器上下文关联的数据库目录 */
   /** The datbase catalog associated with this executor context */
   Catalog *catalog_;
   /** The buffer pool manager associated with this executor context */

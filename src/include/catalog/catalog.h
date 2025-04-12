@@ -48,13 +48,21 @@ struct TableInfo {
    */
   TableInfo(Schema schema, std::string name, std::unique_ptr<TableHeap> &&table, table_oid_t oid)
       : schema_{std::move(schema)}, name_{std::move(name)}, table_{std::move(table)}, oid_{oid} {}
+
   /** The table schema */
+  /** 表的模式，描述表中各列的结构（类型、名称等） */
   Schema schema_;
+
   /** The table name */
+  /** 表的名称 */
   const std::string name_;
+
   /** An owning pointer to the table heap */
+  /** 一个拥有指针，指向表堆对象 */
   std::unique_ptr<TableHeap> table_;
+
   /** The table OID */
+  /** 表的唯一标识符 */
   const table_oid_t oid_;
 };
 
@@ -80,16 +88,27 @@ struct IndexInfo {
         table_name_{std::move(table_name)},
         key_size_{key_size} {}
   /** The schema for the index key */
+  /** 索引键的模式，描述索引键的结构 */
   Schema key_schema_;
+
   /** The name of the index */
+  /** 索引的名称 */
   std::string name_;
+
   /** An owning pointer to the index */
+  /** 指向索引对象的智能指针 */
   std::unique_ptr<Index> index_;
+
   /** The unique OID for the index */
+  /** 索引的唯一标识符 */
   index_oid_t index_oid_;
+
   /** The name of the table on which the index is created */
+  /** 索引所在表的名称 */
   std::string table_name_;
+
   /** The size of the index key, in bytes */
+  /** 索引键的大小（以字节为单位） */
   const size_t key_size_;
 };
 
@@ -98,6 +117,7 @@ struct IndexInfo {
  * use by executors within the DBMS execution engine. It handles
  * table creation, table lookup, index creation, and index lookup.
  */
+ /** Catalog 类是一个非持久化的系统目录，主要由 DBMS 执行器使用。它负责维护和查找表和索引的元数据，并提供创建和查询表/索引的接口。 */
 class Catalog {
  public:
   /** Indicates that an operation returning a `TableInfo*` failed */
@@ -342,34 +362,43 @@ class Catalog {
   }
 
  private:
+  // 缓冲池管理器
   [[maybe_unused]] BufferPoolManager *bpm_;
+
+  // 锁管理器
   [[maybe_unused]] LockManager *lock_manager_;
+
+  // 日志管理器
   [[maybe_unused]] LogManager *log_manager_;
 
   /**
    * Map table identifier -> table metadata.
-   *
+   * 表 OID -> 表元数据（TableInfo）
    * NOTE: `tables_` owns all table metadata.
    */
   std::unordered_map<table_oid_t, std::unique_ptr<TableInfo>> tables_;
 
   /** Map table name -> table identifiers. */
+  /** 表名 -> 表 OID */
   std::unordered_map<std::string, table_oid_t> table_names_;
 
   /** The next table identifier to be used. */
+  /** 生成新的表 OID */
   std::atomic<table_oid_t> next_table_oid_{0};
 
   /**
    * Map index identifier -> index metadata.
-   *
+   * 索引 OID -> 索引元数据（IndexInfo）
    * NOTE: that `indexes_` owns all index metadata.
    */
   std::unordered_map<index_oid_t, std::unique_ptr<IndexInfo>> indexes_;
 
   /** Map table name -> index names -> index identifiers. */
+  /** 表名 -> (索引名 -> 索引 OID) */
   std::unordered_map<std::string, std::unordered_map<std::string, index_oid_t>> index_names_;
 
   /** The next index identifier to be used. */
+  /** 用于生成新的索引 OID */
   std::atomic<index_oid_t> next_index_oid_{0};
 };
 

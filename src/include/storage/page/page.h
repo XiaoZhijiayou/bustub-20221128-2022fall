@@ -25,7 +25,13 @@ namespace bustub {
  * held in main memory. Page also contains book-keeping information that is used by the buffer pool manager, e.g.
  * pin count, dirty flag, page id, etc.
  */
-class Page {
+
+/**
+  * data_数组：存储实际数据的区域，大小为BUSTUB_PAGE_SIZE。
+  * 页头布局：数据区的前8字节为页头：0-3字节保留，4-7字节为LSN，用于恢复和日志管理
+  */
+
+class Page { //存储的最基本单位
   // There is book-keeping information inside the page that should only be relevant to the buffer pool manager.
   friend class BufferPoolManagerInstance;
 

@@ -22,6 +22,7 @@
 namespace bustub {
 /**
  * IndexScanPlanNode identifies a table that should be scanned with an optional predicate.
+ * IndexScanPlanNode表示使用索引扫描的执行计划节点类
  */
 class IndexScanPlanNode : public AbstractPlanNode {
  public:

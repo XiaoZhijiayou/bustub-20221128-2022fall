@@ -72,6 +72,13 @@ class Schema {
    * @param col_name name of column to look for
    * @return the index of a column with the given name, `std::nullopt` if it does not exist
    */
+
+  /**
+    * 查找并返回模式中第一个具有指定名称的列的索引。
+    * 如果存在多个同名列，则返回第一个匹配的索引。
+    * @param col_name 要查找的列名
+    * @return 给定名称的列的索引，如果不存在则返回 `std::nullopt`
+    */
   auto TryGetColIdx(const std::string &col_name) const -> std::optional<uint32_t> {
     for (uint32_t i = 0; i < columns_.size(); ++i) {
       if (columns_[i].GetName() == col_name) {
@@ -101,15 +108,19 @@ class Schema {
 
  private:
   /** Fixed-length column size, i.e. the number of bytes used by one tuple. */
+  /** 表示一个元组占用的总字节数，也就是所有列数据加起来的固定长度 */
   uint32_t length_;
 
   /** All the columns in the schema, inlined and uninlined. */
+  /** 存储模式中所有的列（Column 对象） */
   std::vector<Column> columns_;
 
   /** True if all the columns are inlined, false otherwise. */
+  /** 标记元组中所有列是否都是内联存储的 */
   bool tuple_is_inlined_{true};
 
   /** Indices of all uninlined columns. */
+  /** 存储所有非内联列的索引 */
   std::vector<uint32_t> uninlined_columns_;
 };
 

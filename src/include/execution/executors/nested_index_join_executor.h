@@ -24,11 +24,13 @@
 #include "execution/plans/nested_index_join_plan.h"
 #include "storage/table/tmp_tuple.h"
 #include "storage/table/tuple.h"
+#include "type/value.h"
 
 namespace bustub {
 
 /**
  * IndexJoinExecutor executes index join operations.
+ * 嵌套索引连接执行器，索引嵌套循环连接执行器
  */
 class NestIndexJoinExecutor : public AbstractExecutor {
  public:
@@ -48,7 +50,11 @@ class NestIndexJoinExecutor : public AbstractExecutor {
   auto Next(Tuple *tuple, RID *rid) -> bool override;
 
  private:
+ void AddTupleValuesTo(std::vector<Value> &values, Tuple *tuple, const Schema &schema);
   /** The nested index join plan node. */
+  /** 保存了连接操作的计划信息 */
   const NestedIndexJoinPlanNode *plan_;
+  /** 代表外层的执行器，用于提供每个外层的Tuple */
+  std::unique_ptr<AbstractExecutor> child_executor_;
 };
 }  // namespace bustub

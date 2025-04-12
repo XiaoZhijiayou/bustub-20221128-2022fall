@@ -26,6 +26,12 @@ namespace bustub {
 class Transaction;
 
 /**
+ * 类 IndexMetadata - 存储索引对象的元数据
+ *
+ * 元数据对象维护了索引的元组模式和键属性，因为外部调用者不知道索引键的实际结构，
+ * 所以由索引来负责维护这样的映射关系，并进行元组键和索引键之间的转换。
+ */
+/**
  * class IndexMetadata - Holds metadata of an index object.
  *
  * The metadata object maintains the tuple schema and key attribute of an
@@ -33,6 +39,7 @@ class Transaction;
  * the index key, so it is the index's responsibility to maintain such a
  * mapping relation and does the conversion between tuple key and index key
  */
+ // 存储与索引相关的元数据
 class IndexMetadata {
  public:
   IndexMetadata() = delete;
@@ -87,13 +94,13 @@ class IndexMetadata {
 
  private:
   /** The name of the index */
-  std::string name_;
+  std::string name_;                            // 索引的名称
   /** The name of the table on which the index is created */
-  std::string table_name_;
+  std::string table_name_;                      // 索引所在表的名称
   /** The mapping relation between key schema and tuple schema */
-  const std::vector<uint32_t> key_attrs_;
+  const std::vector<uint32_t> key_attrs_;       // 索引键的列与表列之间的映射关系
   /** The schema of the indexed key */
-  std::shared_ptr<Schema> key_schema_;
+  std::shared_ptr<Schema> key_schema_;          // 索引键的模式
 };
 
 /////////////////////////////////////////////////////////////////////
@@ -114,6 +121,17 @@ class IndexMetadata {
  * only supports conjunction, and may or may not be optimized depending on
  * the type of expressions inside the predicate.
  */
+
+ /**
+ * 类 Index - 用于派生出不同类型索引的基类
+ *
+ * 索引结构主要用于维护底层表的模式信息，以及索引键与元组键之间的映射关系，并提供一种抽象方式，
+ * 让外部可以与底层索引实现进行交互，而不暴露实际实现的接口。
+ *
+ * 索引对象还处理谓词扫描，除了简单的插入、删除、谓词插入、点查询和全索引扫描外。谓词扫描仅支持合取操作，
+ * 并且可能会根据谓词中表达式的类型进行优化，也可能不会。
+ */
+ // 索引的基类
 class Index {
  public:
   /**
@@ -177,7 +195,7 @@ class Index {
 
  private:
   /** The Index structure owns its metadata */
-  std::unique_ptr<IndexMetadata> metadata_;
+  std::unique_ptr<IndexMetadata> metadata_; // 索引的元数据
 };
 
 }  // namespace bustub

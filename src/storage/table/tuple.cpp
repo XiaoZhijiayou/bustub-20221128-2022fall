@@ -25,6 +25,8 @@ Tuple::Tuple(std::vector<Value> values, const Schema *schema) : allocated_(true)
   assert(values.size() == schema->GetColumnCount());
 
   // 1. Calculate the size of the tuple.
+  //   - 固定部分大小：由 schema->GetLength() 返回
+  //   - 对于非内联（varlen）列，需要额外增加：每个变长值的实际长度 + 一个 uint32_t 用来记录偏移量
   uint32_t tuple_size = schema->GetLength();
   for (auto &i : schema->GetUnlinedColumns()) {
     auto len = values[i].GetLength();
@@ -34,12 +36,14 @@ Tuple::Tuple(std::vector<Value> values, const Schema *schema) : allocated_(true)
     tuple_size += (len + sizeof(uint32_t));
   }
 
-  // 2. Allocate memory.
+  // 2. Allocate memory : 为整个元组数据分配一块连续的存储空间，并初始化为 0
   size_ = tuple_size;
   data_ = new char[size_];
   std::memset(data_, 0, size_);
 
   // 3. Serialize each attribute based on the input value.
+  // 固定部分数据在 schema->GetLength() 范围内存放，
+  // 变长数据则存放在固定部分之后，offset 用于记录变长数据在 data_ 中的位置。
   uint32_t column_count = schema->GetColumnCount();
   uint32_t offset = schema->GetLength();
 
@@ -47,8 +51,10 @@ Tuple::Tuple(std::vector<Value> values, const Schema *schema) : allocated_(true)
     const auto &col = schema->GetColumn(i);
     if (!col.IsInlined()) {
       // Serialize relative offset, where the actual varchar data is stored.
+      // 对于非内联的列，先在固定部分存放该列的偏移量
       *reinterpret_cast<uint32_t *>(data_ + col.GetOffset()) = offset;
       // Serialize varchar value, in place (size+data).
+      // 将变长数据序列化到 offset 处（包括数据长度和实际数据）
       values[i].SerializeTo(data_ + offset);
       auto len = values[i].GetLength();
       if (len == BUSTUB_VALUE_NULL) {
@@ -56,25 +62,30 @@ Tuple::Tuple(std::vector<Value> values, const Schema *schema) : allocated_(true)
       }
       offset += (len + sizeof(uint32_t));
     } else {
+      // 对于内联的列，直接在固定位置序列化数据
       values[i].SerializeTo(data_ + col.GetOffset());
     }
   }
 }
 
+// 拷贝构造函数
 Tuple::Tuple(const Tuple &other) : allocated_(other.allocated_), rid_(other.rid_), size_(other.size_) {
   if (allocated_) {
     delete[] data_;
   }
   if (allocated_) {
     // Deep copy.
+    // 深拷贝：为 data_ 分配新的内存，并复制内容
     data_ = new char[size_];
     memcpy(data_, other.data_, size_);
   } else {
     // Shallow copy.
+    // 浅拷贝：直接拷贝指针，不重新分配内存
     data_ = other.data_;
   }
 }
 
+// 赋值构造函数
 auto Tuple::operator=(const Tuple &other) -> Tuple & {
   if (allocated_) {
     delete[] data_;
@@ -104,7 +115,8 @@ auto Tuple::GetValue(const Schema *schema, const uint32_t column_idx) const -> V
   return Value::DeserializeFrom(data_ptr, column_type);
 }
 
-auto Tuple::KeyFromTuple(const Schema &schema, const Schema &key_schema, const std::vector<uint32_t> &key_attrs)
+// 从当前元组中提取构成索引键的部分数据。
+auto Tuple::KeyFromTuple(const Schema &schema, const Schema &key_schema, const std::vector<uint32_t> &key_attrs/*列索引向量，指定了哪些列构成索引键*/)
     -> Tuple {
   std::vector<Value> values;
   values.reserve(key_attrs.size());
@@ -114,6 +126,7 @@ auto Tuple::KeyFromTuple(const Schema &schema, const Schema &key_schema, const s
   return {values, &key_schema};
 }
 
+// 用于获取指定列在 data_ 中的存储地址
 auto Tuple::GetDataPtr(const Schema *schema, const uint32_t column_idx) const -> const char * {
   assert(schema);
   assert(data_);
@@ -129,6 +142,7 @@ auto Tuple::GetDataPtr(const Schema *schema, const uint32_t column_idx) const ->
   return (data_ + offset);
 }
 
+// 生成一个字符串来表示元组的内容
 auto Tuple::ToString(const Schema *schema) const -> std::string {
   std::stringstream os;
 
@@ -154,11 +168,13 @@ auto Tuple::ToString(const Schema *schema) const -> std::string {
   return os.str();
 }
 
+// 序列化元组数据到指定的存储位置
 void Tuple::SerializeTo(char *storage) const {
   memcpy(storage, &size_, sizeof(int32_t));
   memcpy(storage + sizeof(int32_t), data_, size_);
 }
 
+// 从指定的存储位置反序列化元组数据
 void Tuple::DeserializeFrom(const char *storage) {
   uint32_t size = *reinterpret_cast<const uint32_t *>(storage);
   // Construct a tuple.

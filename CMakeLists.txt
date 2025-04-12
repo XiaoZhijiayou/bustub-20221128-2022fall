@@ -1,21 +1,25 @@
+# 设置基础的构建选项
 cmake_minimum_required(VERSION 3.10)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)   # For clang-tidy.
 set(BUILD_SHARED_LIBS OFF)              # We expect external libraries to be linked statically.
 set(CMAKE_CXX_STANDARD 17)              # Compile as C++17.
 set(CMAKE_CXX_STANDARD_REQUIRED ON)     # Require C++17 support.
 
+# 项目的基本信息
 project(BusTub
         VERSION 2022.8
         DESCRIPTION "The BusTub Relational Database Management System (Educational) @ https://github.com/cmu-db/bustub"
         LANGUAGES C CXX
         )
 
+# 确保项目的构建类型
 if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     message(STATUS "Setting build type to `Debug` as none was specified.")
     set(CMAKE_BUILD_TYPE "Debug")
 endif ()
 
 
+# 
 if (EMSCRIPTEN)
     add_compile_options(-fexceptions)
     add_link_options(-fexceptions)
@@ -24,17 +28,20 @@ endif ()
 # People keep running CMake in the wrong folder, completely nuking their project or creating weird bugs.
 # This checks if you're running CMake from a folder that already has CMakeLists.txt.
 # Importantly, this catches the common case of running it from the root directory.
+# 确保从一个单独的构建目录运行 CMake（不是直接在源代码根目录中运行 CMake）
 file(TO_CMAKE_PATH "${PROJECT_BINARY_DIR}/CMakeLists.txt" PATH_TO_CMAKELISTS_TXT)
 if (EXISTS "${PATH_TO_CMAKELISTS_TXT}")
     message(FATAL_ERROR "Run CMake from a build subdirectory! \"mkdir build ; cd build ; cmake ..\" \
     Some junk files were created in this folder (CMakeCache.txt, CMakeFiles); you should delete those.")
 endif ()
 
+# 检查是否使用了正确的 CMake 版本
 # Expected directory structure.
 set(BUSTUB_BUILD_SUPPORT_DIR "${CMAKE_SOURCE_DIR}/build_support")
 set(BUSTUB_CLANG_SEARCH_PATH "/usr/local/bin" "/usr/bin" "/usr/local/opt/llvm/bin" "/usr/local/opt/llvm@12/bin"
         "/usr/local/Cellar/llvm/12.0.1/bin" "/opt/homebrew/opt/llvm@12/bin/")
 
+# 检查编译器的选项
 if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     if (CMAKE_CXX_COMPILER_VERSION MATCHES "^12.")
         message(STATUS "You're using ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}")
@@ -56,6 +63,7 @@ enable_testing()
 
 # clang-format
 
+# 查找 clang-format（代码格式化工具）和 clang-tidy（代码静态检查工具）
 # attempt to find the binary if user did not specify
 find_program(CLANG_FORMAT_BIN
         NAMES clang-format clang-format-12
@@ -66,6 +74,7 @@ if ("${CLANG_FORMAT_BIN}" STREQUAL "CLANG_FORMAT_BIN-NOTFOUND")
 else ()
     message(STATUS "BusTub/main found clang-format at ${CLANG_FORMAT_BIN}")
 endif ()
+
 
 # attempt to find the binary if user did not specify
 find_program(CLANG_TIDY_BIN
@@ -115,6 +124,7 @@ endif ()
 message("Build mode: ${CMAKE_BUILD_TYPE}")
 message("${BUSTUB_SANITIZER} sanitizer will be enabled in debug mode.")
 
+# 编译器设置
 # Compiler flags.
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wall -Wextra -Werror")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wno-unused-parameter -Wno-attributes") #TODO: remove
@@ -126,11 +136,13 @@ message(STATUS "CMAKE_CXX_FLAGS_DEBUG: ${CMAKE_CXX_FLAGS_DEBUG}")
 message(STATUS "CMAKE_EXE_LINKER_FLAGS: ${CMAKE_EXE_LINKER_FLAGS}")
 message(STATUS "CMAKE_SHARED_LINKER_FLAGS: ${CMAKE_SHARED_LINKER_FLAGS}")
 
+# 设置生成输出目录
 # Output directory.
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
+# 设置源代码、测试和第三方头文件的目录
 # Includes.
 set(BUSTUB_SRC_INCLUDE_DIR ${PROJECT_SOURCE_DIR}/src/include)
 set(BUSTUB_TEST_INCLUDE_DIR ${PROJECT_SOURCE_DIR}/test/include)
@@ -141,6 +153,7 @@ set(BUSTUB_THIRD_PARTY_INCLUDE_DIR
         ${PROJECT_SOURCE_DIR}/third_party/argparse/include
         )
 
+# 配置用于设置项目的头文件搜索路径，确保编译器能够找到包含在不同目录下的头文件
 include_directories(${BUSTUB_SRC_INCLUDE_DIR} ${BUSTUB_TEST_INCLUDE_DIR} ${BUSTUB_THIRD_PARTY_INCLUDE_DIR})
 include_directories(BEFORE src) # This is needed for gtest.
 
@@ -152,7 +165,7 @@ endfunction()
 # Other CMake modules
 # MUST BE ADDED AFTER CONFIGURING COMPILER PARAMETERS
 ######################################################################################################################
-
+# 添加子目录
 add_subdirectory(src)
 add_subdirectory(test)
 add_subdirectory(third_party)
@@ -172,6 +185,7 @@ string(CONCAT BUSTUB_FORMAT_DIRS
         "${CMAKE_CURRENT_SOURCE_DIR}/test,"
         )
 
+# 设置 make format 目标来运行 clang-format 进行代码格式化
 # Runs clang format and updates files in place.
 add_custom_target(format ${BUSTUB_BUILD_SUPPORT_DIR}/run_clang_format.py
         ${CLANG_FORMAT_BIN}
@@ -182,6 +196,7 @@ add_custom_target(format ${BUSTUB_BUILD_SUPPORT_DIR}/run_clang_format.py
         --quiet
         )
 
+# 设置 make check-lint 目标来运行 cpplint 进行代码风格检查
 # Runs clang format and exits with a non-zero exit code if any files need to be reformatted
 add_custom_target(check-format ${BUSTUB_BUILD_SUPPORT_DIR}/run_clang_format.py
         ${CLANG_FORMAT_BIN}
@@ -216,11 +231,13 @@ add_custom_target(check-lint echo '${BUSTUB_LINT_FILES}' | xargs -n12 -P8
 ###########################################################
 # runs clang-tidy and exits with a non-zero exit code if any errors are found.
 # note that clang-tidy automatically looks for a .clang-tidy file in parent directories
+# 检查项目的代码质量
 add_custom_target(check-clang-tidy
         ${BUSTUB_BUILD_SUPPORT_DIR}/run_clang_tidy.py                     # run LLVM's clang-tidy script
         -clang-tidy-binary ${CLANG_TIDY_BIN}                              # using our clang-tidy binary
         -p ${CMAKE_BINARY_DIR}                                            # using cmake's generated compile commands
         )
+# 运行 clang-tidy 并自动修复代码中的问题
 add_custom_target(fix-clang-tidy
         ${BUSTUB_BUILD_SUPPORT_DIR}/run_clang_tidy.py                     # run LLVM's clang-tidy script
         -clang-tidy-binary ${CLANG_TIDY_BIN}                              # using our clang-tidy binary
@@ -228,12 +245,14 @@ add_custom_target(fix-clang-tidy
         -clang-apply-replacements-binary ${CLANG_APPLY_REPLACEMENTS_BIN}  # using our clang-apply-replacements binary
         -fix                                                              # apply suggested changes generated by clang-tidy
         )
+# 只检查自上次提交或上次 clang-tidy 执行以来的更改文件
 add_custom_target(check-clang-tidy-diff
         ${BUSTUB_BUILD_SUPPORT_DIR}/run_clang_tidy.py                     # run LLVM's clang-tidy script
         -clang-tidy-binary ${CLANG_TIDY_BIN}                              # using our clang-tidy binary
         -p ${CMAKE_BINARY_DIR}                                            # using cmake's generated compile commands
         -only-diff                                                        # only check diff files to master
         )
+# 仅对自上次提交或上次 clang-tidy 执行以来的更改文件进行修复
 add_custom_target(fix-clang-tidy-diff
         ${BUSTUB_BUILD_SUPPORT_DIR}/run_clang_tidy.py                     # run LLVM's clang-tidy script
         -clang-tidy-binary ${CLANG_TIDY_BIN}                              # using our clang-tidy binary

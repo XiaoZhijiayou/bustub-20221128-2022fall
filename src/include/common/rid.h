@@ -61,8 +61,8 @@ class RID {
   auto operator==(const RID &other) const -> bool { return page_id_ == other.page_id_ && slot_num_ == other.slot_num_; }
 
  private:
-  page_id_t page_id_{INVALID_PAGE_ID};
-  uint32_t slot_num_{0};  // logical offset from 0, 1...
+  page_id_t page_id_{INVALID_PAGE_ID};  // 数据库中页面的唯一标识符
+  uint32_t slot_num_{0};                // logical offset from 0, 1...  //存储记录在页面中的槽编号。用于定位页面中的具体记录。
 };
 
 }  // namespace bustub

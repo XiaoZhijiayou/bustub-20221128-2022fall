@@ -19,7 +19,6 @@
 #include "test_util.h"  // NOLINT
 
 namespace bustub {
-
 TEST(BPlusTreeTests, InsertTest1) {
   // create KeyComparator and index schema
   auto key_schema = ParseCreateStatement("a bigint");

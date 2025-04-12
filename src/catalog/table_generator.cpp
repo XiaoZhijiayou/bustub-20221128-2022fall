@@ -6,12 +6,14 @@
 
 namespace bustub {
 
+// 生成数值类型的列数据
 template <typename CppType>
 auto TableGenerator::GenNumericValues(ColumnInsertMeta *col_meta, uint32_t count) -> std::vector<Value> {
   std::vector<Value> values{};
   values.reserve(count);
 
   // Handle serial columns
+  // 处理Serial 分布
   if (col_meta->dist_ == Dist::Serial) {
     for (uint32_t i = 0; i < count; i++) {
       values.emplace_back(Value(col_meta->type_, static_cast<CppType>(col_meta->serial_counter_ + col_meta->min_)));
@@ -21,6 +23,7 @@ auto TableGenerator::GenNumericValues(ColumnInsertMeta *col_meta, uint32_t count
   }
 
   // Handle cyclic columns
+  // 处理 Cyclic 分布
   if (col_meta->dist_ == Dist::Cyclic) {
     for (uint32_t i = 0; i < count; i++) {
       values.emplace_back(Value(col_meta->type_, static_cast<CppType>(col_meta->serial_counter_)));
@@ -31,7 +34,7 @@ auto TableGenerator::GenNumericValues(ColumnInsertMeta *col_meta, uint32_t count
     }
     return values;
   }
-
+  // 处理其他情况(例如 Uniform 随机分布)
   std::default_random_engine generator;
   // TODO(Amadou): Break up in two branches if this is too weird.
   std::conditional_t<std::is_integral_v<CppType>, std::uniform_int_distribution<CppType>,
@@ -43,6 +46,7 @@ auto TableGenerator::GenNumericValues(ColumnInsertMeta *col_meta, uint32_t count
   return values;
 }
 
+// 生成某列所有数据
 auto TableGenerator::MakeValues(ColumnInsertMeta *col_meta, uint32_t count) -> std::vector<Value> {
   std::vector<Value> values;
   switch (col_meta->type_) {
@@ -61,9 +65,11 @@ auto TableGenerator::MakeValues(ColumnInsertMeta *col_meta, uint32_t count) -> s
   }
 }
 
+// 向表中填充数据
 void TableGenerator::FillTable(TableInfo *info, TableInsertMeta *table_meta) {
   uint32_t num_inserted = 0;
   uint32_t batch_size = 128;
+  // 进行批量插入数据，以提高效率
   while (num_inserted < table_meta->num_rows_) {
     std::vector<std::vector<Value>> values;
     uint32_t num_values = std::min(batch_size, table_meta->num_rows_ - num_inserted);

@@ -16,9 +16,12 @@
 #include <utility>
 #include <vector>
 
+#include "catalog/catalog.h"
+#include "catalog/schema.h"
 #include "execution/executor_context.h"
 #include "execution/executors/abstract_executor.h"
 #include "execution/plans/delete_plan.h"
+#include "storage/table/table_heap.h"
 #include "storage/table/tuple.h"
 
 namespace bustub {
@@ -56,9 +59,14 @@ class DeleteExecutor : public AbstractExecutor {
   auto GetOutputSchema() const -> const Schema & override { return plan_->OutputSchema(); };
 
  private:
+  bool done_;
   /** The delete plan node to be executed */
   const DeletePlanNode *plan_;
   /** The child executor from which RIDs for deleted tuples are pulled */
   std::unique_ptr<AbstractExecutor> child_executor_;
+  TableHeap *table_;
+  std::unique_ptr<Schema> schema_;
+  std::unique_ptr<std::vector<IndexInfo *>> indexes_;
+  std::vector<RID> locked_rids_;
 };
 }  // namespace bustub

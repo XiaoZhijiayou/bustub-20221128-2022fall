@@ -13,6 +13,7 @@
 #pragma once
 
 #include <memory>
+#include <utility>
 #include <vector>
 
 #include "execution/executor_context.h"
@@ -27,6 +28,7 @@ namespace bustub {
  * The TopNExecutor executor executes a topn.
  */
 class TopNExecutor : public AbstractExecutor {
+  using ResultContainer = std::vector<std::pair<Tuple, RID>>;
  public:
   /**
    * Construct a new TopNExecutor instance.
@@ -50,7 +52,12 @@ class TopNExecutor : public AbstractExecutor {
   auto GetOutputSchema() const -> const Schema & override { return plan_->OutputSchema(); }
 
  private:
+  bool result_generated_;
   /** The topn plan node to be executed */
   const TopNPlanNode *plan_;
+  std::unique_ptr<AbstractExecutor> child_executor_;
+  std::unique_ptr<ResultContainer> result_;
+  ResultContainer ::iterator current_iterator_;
 };
+
 }  // namespace bustub

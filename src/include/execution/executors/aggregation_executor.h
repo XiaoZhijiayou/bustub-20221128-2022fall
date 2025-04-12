@@ -24,9 +24,27 @@
 #include "execution/expressions/abstract_expression.h"
 #include "execution/plans/aggregation_plan.h"
 #include "storage/table/tuple.h"
+#include "type/limits.h"
+#include "type/type.h"
+#include "type/type_id.h"
 #include "type/value_factory.h"
 
 namespace bustub {
+
+/**
+  * 维护聚合键与聚合结果的映射关系
+  * 提供初始值生成、值合并、插入等功能
+  * 迭代器可用来遍历全部聚合结果
+  */
+
+/**
+  CountStarAggregate：对应 SQL 里的 COUNT(*)，不管列值是否为 NULL，都计入行数。
+  CountAggregate：对应 SQL 里的 COUNT(expr)，通常只会统计非 NULL 值的行数。
+  SumAggregate：对应 SQL 里的 SUM(expr)，对数值列做求和。
+  MinAggregate：对应 SQL 里的 MIN(expr)，找最小值。
+  MaxAggregate：对应 SQL 里的 MAX(expr)，找最大值。
+  */
+
 
 /**
  * A simplified hash table that has all the necessary functionality for aggregations.
@@ -72,12 +90,47 @@ class SimpleAggregationHashTable {
    */
   void CombineAggregateValues(AggregateValue *result, const AggregateValue &input) {
     for (uint32_t i = 0; i < agg_exprs_.size(); i++) {
+      auto &this_result = result->aggregates_.at(i);
+      auto &this_value = input.aggregates_.at(i);
       switch (agg_types_[i]) {
         case AggregationType::CountStarAggregate:
+          this_result = this_result.Add(Value(TypeId::INTEGER, 1));
+          break;
         case AggregationType::CountAggregate:
+          if (!this_value.IsNull()) {
+            if (this_result.IsNull()) {
+              this_result = ValueFactory::GetIntegerValue(0);
+            }
+            this_result = this_result.Add(Value(TypeId::INTEGER, 1));
+          }
+          break;
         case AggregationType::SumAggregate:
+          if (!this_value.IsNull()) {
+            if (this_result.IsNull()) {
+              this_result = ValueFactory::GetIntegerValue(0);
+            }
+            this_result = this_result.Add(this_value);
+          }
+          break;
         case AggregationType::MinAggregate:
+          if (!this_value.IsNull()) {
+            if (this_result.IsNull()) {
+              this_result = ValueFactory::GetIntegerValue(BUSTUB_INT32_MAX);
+            }
+            if (this_result.CompareGreaterThan(this_value) == CmpBool::CmpTrue) {
+              this_result = this_value;
+            }
+          }
+          break;
         case AggregationType::MaxAggregate:
+          if (!this_value.IsNull()) {
+            if (this_result.IsNull()) {
+              this_result = ValueFactory::GetIntegerValue(0);
+            }
+            if (this_result.CompareLessThan(this_value) == CmpBool::CmpTrue) {
+              this_result = this_value;
+            }
+          }
           break;
       }
     }
@@ -148,6 +201,12 @@ class SimpleAggregationHashTable {
  * AggregationExecutor executes an aggregation operation (e.g. COUNT, SUM, MIN, MAX)
  * over the tuples produced by a child executor.
  */
+
+/**
+ * 继承自 AbstractExecutor，执行数据库中的分组聚合操作
+ * 在 Init() 阶段从子执行器取数据，利用 SimpleAggregationHashTable 完成分组和聚合。
+ * 在 Next() 中遍历聚合表并将结果输出给上层。
+ */
 class AggregationExecutor : public AbstractExecutor {
  public:
   /**
@@ -196,13 +255,19 @@ class AggregationExecutor : public AbstractExecutor {
   }
 
  private:
+  enum class EmptyState { kEmpty, kNotEmpty, kReturnedForEmpty };
   /** The aggregation plan node */
   const AggregationPlanNode *plan_;
   /** The child executor that produces tuples over which the aggregation is computed */
   std::unique_ptr<AbstractExecutor> child_;
   /** Simple aggregation hash table */
-  // TODO(Student): Uncomment SimpleAggregationHashTable aht_;
+  SimpleAggregationHashTable aht_;
   /** Simple aggregation hash table iterator */
-  // TODO(Student): Uncomment SimpleAggregationHashTable::Iterator aht_iterator_;
+  SimpleAggregationHashTable::Iterator aht_iterator_;
+  /** Used for handing empty table case*/
+  EmptyState empty_status_;
+
+  bool initialized_;
 };
+
 }  // namespace bustub

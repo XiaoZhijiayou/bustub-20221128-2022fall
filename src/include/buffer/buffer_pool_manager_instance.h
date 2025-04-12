@@ -70,7 +70,7 @@ class BufferPoolManagerInstance : public BufferPoolManager {
    * @param[out] page_id id of created page
    * @return nullptr if no new pages could be created, otherwise pointer to new page
    */
-  auto NewPgImp(page_id_t *page_id) -> Page * override;
+  auto NewPgImp(page_id_t *page_id) -> Page * override; // 在缓存中分配一个新页
 
   /**
    * TODO(P1): Add implementation
@@ -88,7 +88,7 @@ class BufferPoolManagerInstance : public BufferPoolManager {
    * @param page_id id of page to be fetched
    * @return nullptr if page_id cannot be fetched, otherwise pointer to the requested page
    */
-  auto FetchPgImp(page_id_t page_id) -> Page * override;
+  auto FetchPgImp(page_id_t page_id) -> Page * override; //将磁盘页加载到缓存池中
 
   /**
    * TODO(P1): Add implementation
@@ -103,7 +103,7 @@ class BufferPoolManagerInstance : public BufferPoolManager {
    * @param is_dirty true if the page should be marked as dirty, false otherwise
    * @return false if the page is not in the page table or its pin count is <= 0 before this call, true otherwise
    */
-  auto UnpinPgImp(page_id_t page_id, bool is_dirty) -> bool override;
+  auto UnpinPgImp(page_id_t page_id, bool is_dirty) -> bool override; // 减少页的固定次数，允许替换
 
   /**
    * TODO(P1): Add implementation
@@ -116,14 +116,14 @@ class BufferPoolManagerInstance : public BufferPoolManager {
    * @param page_id id of page to be flushed, cannot be INVALID_PAGE_ID
    * @return false if the page could not be found in the page table, true otherwise
    */
-  auto FlushPgImp(page_id_t page_id) -> bool override;
+  auto FlushPgImp(page_id_t page_id) -> bool override;            // 将页写入磁盘，无论是否为脏页
 
   /**
    * TODO(P1): Add implementation
    *
    * @brief Flush all the pages in the buffer pool to disk.
    */
-  void FlushAllPgsImp() override;
+  void FlushAllPgsImp() override;                               // 将所有页写入磁盘
 
   /**
    * TODO(P1): Add implementation
@@ -138,7 +138,7 @@ class BufferPoolManagerInstance : public BufferPoolManager {
    * @param page_id id of page to be deleted
    * @return false if the page exists but could not be deleted, true if the page didn't exist or deletion succeeded
    */
-  auto DeletePgImp(page_id_t page_id) -> bool override;
+  auto DeletePgImp(page_id_t page_id) -> bool override;     // 从缓存中删除页
 
   /** Number of pages in the buffer pool. */
   const size_t pool_size_;
@@ -148,29 +148,33 @@ class BufferPoolManagerInstance : public BufferPoolManager {
   const size_t bucket_size_ = 4;
 
   /** Array of buffer pool pages. */
-  Page *pages_;
+  Page *pages_; // 维护的页面数组
   /** Pointer to the disk manager. */
-  DiskManager *disk_manager_ __attribute__((__unused__));
+  DiskManager *disk_manager_ __attribute__((__unused__)); // 磁盘管理器
   /** Pointer to the log manager. Please ignore this for P1. */
-  LogManager *log_manager_ __attribute__((__unused__));
+  LogManager *log_manager_ __attribute__((__unused__));  
   /** Page table for keeping track of buffer pool pages. */
-  ExtendibleHashTable<page_id_t, frame_id_t> *page_table_;
+  ExtendibleHashTable<page_id_t, frame_id_t> *page_table_; // 维护的哈希表 其中这个page_id就是页的id，frame_id就是页的索引
   /** Replacer to find unpinned pages for replacement. */
-  LRUKReplacer *replacer_;
+  LRUKReplacer *replacer_;                                 // 页面的替换器
   /** List of free frames that don't have any pages on them. */
-  std::list<frame_id_t> free_list_;
+  std::list<frame_id_t> free_list_;                       // 空闲列表
   /** This latch protects shared data structures. We recommend updating this comment to describe what it protects. */
-  std::mutex latch_;
+  std::mutex latch_;                                      // 互斥锁
 
   /**
    * @brief Allocate a page on disk. Caller should acquire the latch before calling this function.
    * @return the id of the allocated page
+   * 在磁盘上分配一个页面。调用者应在调用此函数之前获取闩锁。
+   * @返回分配页面的id
    */
   auto AllocatePage() -> page_id_t;
 
   /**
    * @brief Deallocate a page on disk. Caller should acquire the latch before calling this function.
    * @param page_id id of the page to deallocate
+   * 在磁盘上释放一个页面。调用者应在调用此函数之前获取闩锁。
+   * @param page_id要释放的页面的id
    */
   void DeallocatePage(__attribute__((unused)) page_id_t page_id) {
     // This is a no-nop right now without a more complex data structure to track deallocated pages

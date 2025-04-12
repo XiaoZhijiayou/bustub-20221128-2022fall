@@ -81,11 +81,48 @@
 - 5. src/storage/page/b_plus_tree_page.cpp
 - 6. src/storage/page/b_plus_tree_page.h
 
-- 当前测试：![alt text](image-8.png)
-```cpp
-[  FAILED  ] 2 tests, listed below:
-[  FAILED  ] BPlusTreeConcurrentTest.InsertTest2
-[  FAILED  ] BPlusTreeConcurrentTest.DeleteTest1
+- 对应的修改的文件
 ```
-两个错误部分
+"src/include/storage/page/b_plus_tree_page.h"
+"src/storage/page/b_plus_tree_page.cpp"
+"src/include/storage/page/b_plus_tree_internal_page.h"
+"src/storage/page/b_plus_tree_internal_page.cpp"
+"src/include/storage/page/b_plus_tree_leaf_page.h"
+"src/storage/page/b_plus_tree_leaf_page.cpp"
+"src/include/storage/index/index_iterator.h"
+"src/storage/index/index_iterator.cpp"
+"src/include/storage/index/b_plus_tree.h"
+"src/storage/index/b_plus_tree.cpp"
+```
 
+# Project 3
+
+- 对应修改的文件
+```
+任务 #1 - 访问方法执行程序
+src/include/execution/seq_scan_executor.h
+src/execution/seq_scan_executor.cpp
+src/include/execution/insert_executor.h
+src/execution/insert_executor.cpp
+src/include/execution/delete_executor.h
+src/execution/delete_executor.cpp
+src/include/execution/index_scan_executor.h
+src/execution/index_scan_executor.cpp
+
+任务 #2 - 聚合和联接执行者
+src/include/execution/aggregation_executor.h
+src/execution/aggregation_executor.cpp
+src/include/execution/nested_loop_join_executor.h
+src/execution/nested_loop_join_executor.cpp
+src/include/execution/nested_index_join_executor.h
+src/execution/nested_index_join_executor.cpp
+
+任务 #3 - 排序 + 限制执行程序和前 N 个优化
+src/include/execution/sort_executor.h
+src/execution/sort_executor.cpp
+src/include/execution/limit_executor.h
+src/execution/limit_executor.cpp
+src/include/execution/topn_executor.h
+src/execution/topn_executor.cpp
+src/optimizer/sort_limit_as_topn.cpp
+```

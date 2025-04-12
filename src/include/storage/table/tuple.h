@@ -27,6 +27,10 @@ namespace bustub {
  * | FIXED-SIZE or VARIED-SIZED OFFSET | PAYLOAD OF VARIED-SIZED FIELD |
  * ---------------------------------------------------------------------
  */
+
+ /** Tuple 类代表数据库中的一行数据（记录）。
+  记录的数据按照固定格式存储在内存中，其中包含固定长度数据部分以及变长字段的偏移信息。
+  类中提供了序列化和反序列化接口，用于在内存和磁盘之间转换记录数据。 */
 class Tuple {
   friend class TablePage;
   friend class TableHeap;
@@ -90,10 +94,10 @@ class Tuple {
   // Get the starting storage address of specific column
   auto GetDataPtr(const Schema *schema, uint32_t column_idx) const -> const char *;
 
-  bool allocated_{false};  // is allocated?
-  RID rid_{};              // if pointing to the table heap, the rid is valid
-  uint32_t size_{0};
-  char *data_{nullptr};
+  bool allocated_{false};  // is allocated? 标记 data_ 是否由当前对象分配了内存
+  RID rid_{};              // if pointing to the table heap, the rid is valid 存储该记录的唯一标识符，由页面 ID 和槽编号组成，用于定位记录在表堆中的位置。
+  uint32_t size_{0};       // 表示记录数据的总字节数（长度）。
+  char *data_{nullptr};    // 指向记录数据的缓冲区，这个缓冲区中存储了记录的实际数据，可能包括固定长度部分和变长部分。
 };
 
 }  // namespace bustub

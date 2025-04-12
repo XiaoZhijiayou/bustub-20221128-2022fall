@@ -12,17 +12,21 @@
 
 #pragma once
 
+#include <memory>
 #include <vector>
 
+#include "common/rid.h"
 #include "execution/executor_context.h"
 #include "execution/executors/abstract_executor.h"
 #include "execution/plans/seq_scan_plan.h"
+#include "storage/table/table_iterator.h"
 #include "storage/table/tuple.h"
 
 namespace bustub {
 
 /**
  * The SeqScanExecutor executor executes a sequential table scan.
+ * SeqScanExecutor 是一个顺序扫描执行器，它的任务是对指定表进行全表扫描（顺序扫描），返回表中每一行（元组）。
  */
 class SeqScanExecutor : public AbstractExecutor {
  public:
@@ -50,5 +54,9 @@ class SeqScanExecutor : public AbstractExecutor {
  private:
   /** The sequential scan plan node to be executed */
   const SeqScanPlanNode *plan_;
+  std::vector<RID> locked_rids_;
+  std::unique_ptr<TableIterator> table_current_iterator_;
+  std::unique_ptr<TableIterator> table_end_iterator_;
+  TableHeap *table_;
 };
 }  // namespace bustub

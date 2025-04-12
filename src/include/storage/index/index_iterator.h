@@ -43,10 +43,10 @@ class IndexIterator {
 
  private:
   // add your own private member variables here
-  page_id_t page_id_;
-  int index_;
-  BufferPoolManager *buffer_pool_manager_;
-  MappingType pair_;
+  page_id_t page_id_;                             // 当前叶子页的页id
+  int index_;                                     // 当前叶子页的索引，用于定位具体的键值对       
+  BufferPoolManager *buffer_pool_manager_;        // 缓冲池管理器的指针，用于从内存中获取指定的页
+  MappingType pair_;                              // 当前页的键值对 
 };
 
 }  // namespace bustub

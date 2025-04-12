@@ -13,8 +13,10 @@
 #pragma once
 
 #include <memory>
+#include <utility>
 #include <vector>
 
+#include "common/rid.h"
 #include "execution/executor_context.h"
 #include "execution/executors/abstract_executor.h"
 #include "execution/plans/seq_scan_plan.h"
@@ -27,6 +29,7 @@ namespace bustub {
  * The SortExecutor executor executes a sort.
  */
 class SortExecutor : public AbstractExecutor {
+  using ResultContainer = std::vector<std::pair<Tuple, RID>>;
  public:
   /**
    * Construct a new SortExecutor instance.
@@ -51,6 +54,11 @@ class SortExecutor : public AbstractExecutor {
 
  private:
   /** The sort plan node to be executed */
+  bool result_generated_;
   const SortPlanNode *plan_;
+  std::unique_ptr<ResultContainer> result_;
+  std::unique_ptr<AbstractExecutor> child_executor_;
+  ResultContainer::iterator current_iterator_;
 };
+
 }  // namespace bustub

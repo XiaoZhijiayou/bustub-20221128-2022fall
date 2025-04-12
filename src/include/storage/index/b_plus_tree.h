@@ -37,6 +37,15 @@ namespace bustub {
  * (3) The structure should shrink and grow dynamically
  * (4) Implement index iterator for range scan
  */
+/**
+  * 主类提供交互式 B+ 树的 API。
+  * 实现了一个简单的 B+ 树数据结构，其中内部页面用于指引搜索，叶子页面包含实际数据。
+  * 1. 我们只支持唯一键。
+  * 2. 支持插入和删除操作。
+  * 3. 该结构应动态地增长和缩小。
+  * 4. 实现了索引迭代器用于范围扫描。
+  */
+  
 INDEX_TEMPLATE_ARGUMENTS
 class BPlusTree {
   using InternalPage = BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator>;

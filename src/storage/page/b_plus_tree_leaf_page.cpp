@@ -90,6 +90,7 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::Remove(const KeyType &key, const KeyComparator 
   const auto size = GetSize();
   BUSTUB_ASSERT(size != 0, "unexpected size");
   auto i = 0;
+  // 查找key在array_中的位置
   for (; i < size; ++i) {
     if (comparator(key, array_[i].first) == 0) {
       break;
@@ -98,6 +99,7 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::Remove(const KeyType &key, const KeyComparator 
   if (i == size) {
     return;
   }
+  // 如果找到了key，就将后面的元素向前移动一位
   for (; i < (size - 1); ++i) {
     array_[i] = array_[i + 1];
   }
