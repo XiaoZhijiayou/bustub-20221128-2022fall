@@ -29,6 +29,7 @@ namespace bustub {
  */
 class TopNExecutor : public AbstractExecutor {
   using ResultContainer = std::vector<std::pair<Tuple, RID>>;
+
  public:
   /**
    * Construct a new TopNExecutor instance.
@@ -59,5 +60,4 @@ class TopNExecutor : public AbstractExecutor {
   std::unique_ptr<ResultContainer> result_;
   ResultContainer ::iterator current_iterator_;
 };
-
 }  // namespace bustub

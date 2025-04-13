@@ -12,15 +12,40 @@
 
 #pragma once
 
+#include <cstddef>
 #include <memory>
+#include <unordered_map>
+#include <vector>
+#include <vector>
 #include <utility>
-
+#include "common/rid.h"
+#include "common/util/hash_util.h"
 #include "execution/executor_context.h"
 #include "execution/executors/abstract_executor.h"
 #include "execution/plans/hash_join_plan.h"
 #include "storage/table/tuple.h"
+#include "type/value.h"
+
+namespace  std {
+/** Implements std::hash on Value */
+template <>
+struct hash<bustub::Value> {
+  auto operator()(const bustub::Value &val) const -> std::size_t {
+    size_t curr_hash = 0;
+    {
+      if (!val.IsNull()) {
+        curr_hash = bustub::HashUtil::HashValue(&val);
+      }
+    }
+    return curr_hash;
+  }
+};
+
+}
 
 namespace bustub {
+
+auto operator==(const bustub::Value &x, const bustub::Value &y) -> bool;
 
 /**
  * HashJoinExecutor executes a nested-loop JOIN on two tables.
@@ -51,9 +76,55 @@ class HashJoinExecutor : public AbstractExecutor {
   /** @return The output schema for the join */
   auto GetOutputSchema() const -> const Schema & override { return plan_->OutputSchema(); };
 
+  void Build();
+
  private:
+ class HashTable {
+  public:
+  HashTable() = default;
+
+  ~HashTable() = default;
+  
+  void Insert(const Value &value, const Tuple &tuple, RID rid) {
+    if (table_indices_.count(value) == 0) {
+      table_indices_[value] = 0;
+    }
+    table_[value].emplace_back(tuple, rid);
+  }
+
+  auto Find(const Value &value, Tuple &tuple, RID &rid) -> bool {
+    if (table_.count(value) > 0) {
+      auto &index = table_indices_[value];
+      if (index >= table_[value].size()) {
+        return false;
+      }
+      tuple = table_[value][index].first;
+      rid = table_[value][index].second;
+      index++;
+      return true;
+    }
+    return false;
+  }
+  auto Contain(const Value &value) -> bool { return table_indices_.count(value) > 0;}
+
+  void Reset(const Value &value) { table_indices_[value] = 0; }
+
+  private:
+  std::unordered_map<Value, std::vector<std::pair<Tuple, RID>>> table_;
+  std::unordered_map<Value, size_t> table_indices_;
+};
+
+  void AddTupleValuesTo(std::vector<Value> &values, bustub::Tuple *tuple, const bustub::Schema &schema);
+
+  bool done_;
+  bool result_generated_;
   /** The NestedLoopJoin plan node to be executed. */
   const HashJoinPlanNode *plan_;
+  std::unique_ptr<AbstractExecutor> left_child_;
+  std::unique_ptr<AbstractExecutor> right_child_;
+  HashTable hash_table_;
+  Tuple current_left_tuple_;
+  RID current_left_rid_;
 };
 
 }  // namespace bustub

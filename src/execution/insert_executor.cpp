@@ -119,6 +119,7 @@ auto InsertExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) -> bool {
         }
         ++num_inserted;
     }
+    std::cout << plan_->OutputSchema().ToString() << "lzhhhhhhhhh" << std::endl;
     // 构造了一个包含单个整数值的元组，用于表示插入操作完成后插入的行数
     *tuple = Tuple(std::vector<Value>{Value(TypeId::INTEGER, num_inserted)}, &schema);
     done_ = true;

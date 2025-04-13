@@ -183,14 +183,17 @@ auto BustubInstance::ExecuteSql(const std::string &sql, ResultWriter &writer) ->
 auto BustubInstance::ExecuteSqlTxn(const std::string &sql, ResultWriter &writer, Transaction *txn) -> bool {
   if (!sql.empty() && sql[0] == '\\') {
     // Internal meta-commands, like in `psql`.
+    // 显示所有表信息
     if (sql == "\\dt") {
       CmdDisplayTables(writer);
       return true;
     }
+    // 显示所有索引
     if (sql == "\\di") {
       CmdDisplayIndices(writer);
       return true;
     }
+    // 显示帮助信息
     if (sql == "\\help") {
       CmdDisplayHelp(writer);
       return true;
@@ -199,31 +202,37 @@ auto BustubInstance::ExecuteSqlTxn(const std::string &sql, ResultWriter &writer,
   }
 
   bool is_successful = true;
-
+  // 
   std::shared_lock<std::shared_mutex> l(catalog_lock_);
   bustub::Binder binder(*catalog_);
+  // 解析语法树部分
   binder.ParseAndSave(sql);
   l.unlock();
 
   for (auto *stmt : binder.statement_nodes_) {
     auto statement = binder.BindStatement(stmt);
+    // 针对不同语言的类型不同的处理分支
     switch (statement->type_) {
+      // 创建表语句
       case StatementType::CREATE_STATEMENT: {
         const auto &create_stmt = dynamic_cast<const CreateStatement &>(*statement);
-
+        // 采用独占锁
         std::unique_lock<std::shared_mutex> l(catalog_lock_);
+        // 传入事务，表定义及字段信息，新建表
         auto info = catalog_->CreateTable(txn, create_stmt.table_, Schema(create_stmt.columns_));
         l.unlock();
-
+        // 如果返回的表信息为空就传入异常，否则就通过writer输出创建成功的表id
         if (info == nullptr) {
           throw bustub::Exception("Failed to create table");
         }
         WriteOneCell(fmt::format("Table created with id = {}", info->oid_), writer);
         continue;
       }
+      // 创建索引语句
       case StatementType::INDEX_STATEMENT: {
+        // 转换成为IndexStatement对象，提取出相关的列信息
         const auto &index_stmt = dynamic_cast<const IndexStatement &>(*statement);
-
+        // 遍历传入的列，取得其在表中的索引位置，检查类型是否为整数
         std::vector<uint32_t> col_ids;
         for (const auto &col : index_stmt.cols_) {
           auto idx = index_stmt.table_->schema_.GetColIdx(col->col_name_.back());
@@ -232,12 +241,15 @@ auto BustubInstance::ExecuteSqlTxn(const std::string &sql, ResultWriter &writer,
             throw NotImplementedException("only support creating index on integer column");
           }
         }
+        // 限制只支持单列创建索引
         if (col_ids.size() != 1) {
           throw NotImplementedException("only support creating index with exactly one column");
         }
+        // 创建一个新的schema，包含索引列的信息
         auto key_schema = Schema::CopySchema(&index_stmt.table_->schema_, col_ids);
-
+        // 加独占锁
         std::unique_lock<std::shared_mutex> l(catalog_lock_);
+        // 创建索引，传入事务，索引名，表信息，表的schema，索引的schema，索引的大小，哈希函数类型
         auto info = catalog_->CreateIndex<IntegerKeyType, IntegerValueType, IntegerComparatorType>(
             txn, index_stmt.index_name_, index_stmt.table_->table_, index_stmt.table_->schema_, key_schema, col_ids,
             INTEGER_SIZE, IntegerHashFunctionType{});
@@ -249,17 +261,20 @@ auto BustubInstance::ExecuteSqlTxn(const std::string &sql, ResultWriter &writer,
         WriteOneCell(fmt::format("Index created with id = {}", info->index_oid_), writer);
         continue;
       }
+      // 显示变量
       case StatementType::VARIABLE_SHOW_STATEMENT: {
         const auto &show_stmt = dynamic_cast<const VariableShowStatement &>(*statement);
         auto content = GetSessionVariable(show_stmt.variable_);
         WriteOneCell(fmt::format("{}={}", show_stmt.variable_, content), writer);
         continue;
       }
+      // 设置变量
       case StatementType::VARIABLE_SET_STATEMENT: {
         const auto &set_stmt = dynamic_cast<const VariableSetStatement &>(*statement);
         session_variables_[set_stmt.variable_] = set_stmt.value_;
         continue;
       }
+      // 解释查询计划
       case StatementType::EXPLAIN_STATEMENT: {
         const auto &explain_stmt = dynamic_cast<const ExplainStatement &>(*statement);
         std::string output;
@@ -280,6 +295,7 @@ auto BustubInstance::ExecuteSqlTxn(const std::string &sql, ResultWriter &writer,
         bool show_schema = (explain_stmt.options_ & ExplainOptions::SCHEMA) != 0;
 
         // Print planner result.
+        // 打印planner 结果
         if ((explain_stmt.options_ & ExplainOptions::PLANNER) != 0) {
           output += "=== PLANNER ===";
           output += "\n";
@@ -288,6 +304,7 @@ auto BustubInstance::ExecuteSqlTxn(const std::string &sql, ResultWriter &writer,
         }
 
         // Print optimizer result.
+        // 优化查询计划
         bustub::Optimizer optimizer(*catalog_, IsForceStarterRule());
         auto optimized_plan = optimizer.Optimize(planner.plan_);
 
@@ -308,24 +325,29 @@ auto BustubInstance::ExecuteSqlTxn(const std::string &sql, ResultWriter &writer,
         break;
     }
 
+    // 默认情况下的普通查询执行
     std::shared_lock<std::shared_mutex> l(catalog_lock_);
 
     // Plan the query.
+    // 规划查询：生成初始的执行计划
     bustub::Planner planner(*catalog_);
     planner.PlanQuery(*statement);
 
     // Optimize the query.
+    // 使用优化器优化查询计划
     bustub::Optimizer optimizer(*catalog_, IsForceStarterRule());
     auto optimized_plan = optimizer.Optimize(planner.plan_);
 
     l.unlock();
 
     // Execute the query.
+    // 执行查询计划：执行查询计划并获取结果
     auto exec_ctx = MakeExecutorContext(txn);
     std::vector<Tuple> result_set{};
     is_successful &= execution_engine_->Execute(optimized_plan, &result_set, txn, exec_ctx.get());
 
     // Return the result set as a vector of string.
+    // 首先从执行计划取出schema表结构
     auto schema = planner.plan_->OutputSchema();
 
     // Generate header for the result set.

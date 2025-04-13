@@ -10,7 +10,7 @@
 
 // Uncomment the following define statement will show the log, otherwise, not.
 // #define HOO_ALLOW_DEBUG_LOG
-#define HOO_ALLOW_DEBUG_LOG 1
+
 #ifdef HOO_ALLOW_DEBUG_LOG
 static std::mutex debug_log_mutex;
 #define DEBUG_THREAD_ID (pthread_self() % 1000)
@@ -91,7 +91,6 @@ auto BPLUSTREE_TYPE::GetValue(const KeyType &key, std::vector<ValueType> *result
  * @return: since we only support unique key, if user try to insert duplicate
  * keys return false, otherwise return true.
  */
-
 /*
  * 将一个常量键值对插入到 B+ 树中。
  * 如果当前树为空，则新建树，更新根页面 ID 并插入该条目；否则直接插入到叶子页面中。
@@ -105,12 +104,10 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
   auto latched_pages = std::unique_ptr<LatchedPageContainer, std::function<void(LatchedPageContainer *)>>(
       new LatchedPageContainer, [this](LatchedPageContainer *object) {
         for (auto &page : *object) {
-          // 解除每个页面的锁，然后将其从缓冲池管理器中释放
           DisusePage(page, UseMode::Write);
         }
         delete object;
       });
-  
   bool optimistic_success;
   LeafPage *leaf = OptimisticSearch(key, SearchMode::Insert, transaction, optimistic_success);
   // 乐观搜索失败，解除页面的写锁并unpin，然后使用悲观搜索获取叶子节点
@@ -174,10 +171,9 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
   THREAD_DEBUG_LOG("(thread %ld) Return case 3", DEBUG_THREAD_ID);
   return true;
 }
-
 // 在B+树进行节点分裂的时候，将新生成的节点信息插入到父节点中
 INDEX_TEMPLATE_ARGUMENTS
-void BPLUSTREE_TYPE::InsertInParent(LeafPage *node /*发生分裂的原始叶子节点*/, const KeyType &key/*分裂后再父节点中插入的分界值*/, BPlusTreePage *other_node/*分裂操作中新生成的叶子节点*/,
+void BPLUSTREE_TYPE::InsertInParent(LeafPage *node/*发生分裂的原始叶子节点*/, const KeyType &key/*分裂后再父节点中插入的分界值*/, BPlusTreePage *other_node /*分裂操作中新生成的叶子节点*/,
                                     LatchedPageContainer *latched_pages/*记录本次操作所有被加锁的页面*/, Transaction *transaction/*当前事务的上下文*/) {
   // 获取other_node的page_id
   auto value = other_node->GetPageId();
@@ -264,7 +260,6 @@ void BPLUSTREE_TYPE::InsertInParent(LeafPage *node /*发生分裂的原始叶子
  * delete entry from leaf page. Remember to deal with redistribute or merge if
  * necessary.
  */
-
 /*
  * 删除与输入键关联的键值对
  * 如果当前树为空，立即返回。
@@ -310,8 +305,8 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
 
 // 删除叶子节点中的key，其实就是用于应对删除操作后，并在必要的时候进行节点的合并或重新分配操作
 INDEX_TEMPLATE_ARGUMENTS
-void BPLUSTREE_TYPE::RemoveEntry(BPlusTreePage *node/*当前正在删除的节点*/, const KeyType &key/*需要删除的键*/, LatchedPageContainer *latched_pages/*操作中被加锁的页面*/,
-                                 Transaction *transaction/*事务的上下文*/) {
+void BPLUSTREE_TYPE::RemoveEntry(BPlusTreePage *node, const KeyType &key, LatchedPageContainer *latched_pages,
+                                 Transaction *transaction) {
   THREAD_DEBUG_LOG("(thread %ld) Enter| Parameters: node_page_id=%d, key=%s", DEBUG_THREAD_ID, node->GetPageId(),
                    KeyToString(key).c_str());
   // 如果node是叶子节点，则调用叶子节点的Remove方法，否则调用内部节点的Remove方法
@@ -399,8 +394,8 @@ void BPLUSTREE_TYPE::RemoveEntry(BPlusTreePage *node/*当前正在删除的节�
             .c_str(),
         node->GetPageId());
 
-    // 计算单个节点的最大容量
     // Coalesce: entries in N and N′ can fit in a single node
+    // 计算单个节点的最大容量
     auto single_node_max = node->IsLeafPage() ? node->GetMaxSize() - 1 : node->GetMaxSize();
     // 如果node和相邻节点合并后不会超过单个节点的最大容量。就进行合并操作
     if ((adjacent_node->GetSize() + node->GetSize()) <= single_node_max) {
@@ -412,7 +407,7 @@ void BPLUSTREE_TYPE::RemoveEntry(BPlusTreePage *node/*当前正在删除的节�
       }
       // 递归删除父节点中的分隔键
       RemoveEntry(parent_node, between_key, latched_pages, transaction);
-    } else /* Redistribution: borrow an entry from N′ */ { // 如果两个节点合并后大于single_node_max，则进行重新分配
+    } else /* Redistribution: borrow an entry from N′ */ {// 如果两个节点合并后大于single_node_max，则进行重新分配
       if (adjacent_is_predecessor) {
         THREAD_DEBUG_LOG("(thread %ld) redistribute - page %d <- page %d", DEBUG_THREAD_ID, node->GetPageId(),
                          adjacent_node->GetPageId());
@@ -436,15 +431,15 @@ void BPLUSTREE_TYPE::RemoveEntry(BPlusTreePage *node/*当前正在删除的节�
         // 从后继节点借元素
         if (!node->IsLeafPage()) {
           // 内部节点的重新分配
-          auto pair = ToInternal(adjacent_node)->PopFront();  // 取出后继节点的第一个元素
-          ToInternal(node)->PushBack(pair.first, pair.second);  // 插入到当前节点末尾
+          auto pair = ToInternal(adjacent_node)->PopFront(); // 取出后继节点的第一个元素
+          ToInternal(node)->PushBack(pair.first, pair.second);                   // 插入到当前节点末尾
           parent_node->SetKeyAt(between_key_index, ToInternal(adjacent_node)->Get()[0].first);  // 更新父节点分隔键
           NodeChangeParent(pair.second, node->GetPageId(), latched_pages);  // 更新子节点的父指针
         } else {
           // 如果node是叶子节点的话，并且相邻节点是他的后继节点，就从后继节点借元素
           // 叶子节点的重分配
           auto pair = ToLeaf(adjacent_node)->PopFront();  // 取出后继节点的第一个元素
-          ToLeaf(node)->Insert(pair.first, pair.second, comparator_);   // 插入到当前节点
+          ToLeaf(node)->Insert(pair.first, pair.second, comparator_); // 插入到当前节点
           parent_node->SetKeyAt(between_key_index, ToLeaf(adjacent_node)->KeyAt(0));  // 更新父节点分隔键
         }
       }
@@ -457,7 +452,7 @@ INDEX_TEMPLATE_ARGUMENTS
 void BPLUSTREE_TYPE::Coalesce(bustub::BPlusTreePage *predecessor, bustub::BPlusTreePage *node,
                               const KeyType &between_key, LatchedPageContainer *latched_pages,
                               Transaction *transaction) {
-  // 输出调试日志，打印正在做的 coalesce 操作以及涉及的页号
+   // 输出调试日志，打印正在做的 coalesce 操作以及涉及的页号
   THREAD_DEBUG_LOG("(thread %ld) coalesce page %d to page %d", DEBUG_THREAD_ID, node->GetPageId(),
                    predecessor->GetPageId());
   // 1. 根据 node 是否是叶子节点， 做不同的处理
@@ -501,7 +496,7 @@ void BPLUSTREE_TYPE::Coalesce(bustub::BPlusTreePage *predecessor, bustub::BPlusT
 }
 
 INDEX_TEMPLATE_ARGUMENTS
-void BPLUSTREE_TYPE::NodeChangeParent(page_id_t page_id/*要更新父节点 ID 的页面的 ID*/, page_id_t parent_id/*要设置为父节点的新页面 ID*/, LatchedPageContainer *latched_pages/*当前操作中已经加锁的页面列表*/) {
+void BPLUSTREE_TYPE::NodeChangeParent(page_id_t page_id, page_id_t parent_id, LatchedPageContainer *latched_pages) {
   auto found_iter = std::find_if(latched_pages->begin(), latched_pages->end(),
                                  [page_id](Page *page) { return page->GetPageId() == page_id; });
   if (found_iter != latched_pages->end()) {
@@ -511,6 +506,7 @@ void BPLUSTREE_TYPE::NodeChangeParent(page_id_t page_id/*要更新父节点 ID �
     // 如果页面没有加锁，从缓冲池中加载页面
     auto page = buffer_pool_manager_->FetchPage(page_id);
     page->WLatch();
+
     // 更新父节点 ID
     ToTreePage(page)->SetParentPageId(parent_id);
     page->WUnlatch();
@@ -527,7 +523,6 @@ void BPLUSTREE_TYPE::NodeChangeParent(page_id_t page_id/*要更新父节点 ID �
  * index iterator
  * @return : index iterator
  */
-
 /**
   * 输入参数为空，首先找到最左边的叶子页面，然后构造索引迭代器
   * @return : 索引迭代器
@@ -560,7 +555,6 @@ auto BPLUSTREE_TYPE::Begin() -> INDEXITERATOR_TYPE {
  * first, then construct index iterator
  * @return : index iterator
  */
-
 /**
   * 输入参数是低键，首先找到包含输入键的叶子页面，然后构造索引迭代器
   * @return : 索引迭代器，就是具体页里面对应的key的迭代器 : INDEXITERATOR_TYPE IndexIterator<KeyType, ValueType, KeyComparator>
@@ -597,7 +591,6 @@ auto BPLUSTREE_TYPE::Begin(const KeyType &key) -> INDEXITERATOR_TYPE {
  * of the key/value pair in the leaf node
  * @return : index iterator
  */
-
 /**
   * 输入参数为空，构造一个表示叶子节点中键/值对结束位置的索引迭代器
   * @return : 索引迭代器
@@ -615,7 +608,6 @@ auto BPLUSTREE_TYPE::GetRootPageId() -> page_id_t { return root_page_id_; }
 INDEX_TEMPLATE_ARGUMENTS
 auto BPLUSTREE_TYPE::UsePage(page_id_t page_id, UseMode mode, Transaction *transaction) -> Page * {
   THREAD_DEBUG_LOG("(thread %ld) use page %d status : begin", DEBUG_THREAD_ID, page_id);
-  // 如果page_id为INVALID_PAGE_ID，则使用root_page_id_page_，否则使用buffer_pool_manager_获取页面
   auto page = (page_id != INVALID_PAGE_ID) ? buffer_pool_manager_->FetchPage(page_id) : root_page_id_page_.get();
   // 根据不同的模式加锁
   switch (mode) {
@@ -673,14 +665,13 @@ void BPLUSTREE_TYPE::DeletePage(Page *page, UseMode mode, bustub::Transaction *t
 /*****************************************************************************
  * UTILITIES AND DEBUG
  *****************************************************************************/
-
 // 悲观搜索的实现
 // 每次访问页面都会进行加锁，这种方式保证了页面在搜索过程中不会被其他事务修改，直到事务完成
-INDEX_TEMPLATE_ARGUMENTS
+ INDEX_TEMPLATE_ARGUMENTS
 auto BPLUSTREE_TYPE::PessimisticSearch(const KeyType &key, SearchMode mode, Transaction *transaction,
                                        LatchedPageContainer *latched_pages) -> LeafPage * {
   const auto use_mode = UseMode::Write;
-  // This would add the page to latched_pages automatically if insert or delete.
+   // This would add the page to latched_pages automatically if insert or delete.
   // 用来封装获取页面并加锁的操作。它会在搜索过程中将加锁的页面添加到 latched_pages 中，以确保操作完成后这些页面能够被正确释放。
   const auto smart_use = [this, transaction, latched_pages](page_id_t page_id) -> Page * {
     Page *page;
@@ -688,7 +679,7 @@ auto BPLUSTREE_TYPE::PessimisticSearch(const KeyType &key, SearchMode mode, Tran
     latched_pages->push_back(page);
     return page;
   };
-  // 它用于在遍历树的过程中释放不再需要的锁定页面。
+  // 根据mode（插入或删除）来定义一个安全条件。插入模式下要求当前页面的大小小于最大容量，删除模式下要求页面的大小大于最小容量，并且删除后要保证容量不会小于最小值和最大值之间的差距。
   const auto reset_latched_pages = [this, latched_pages](BPlusTreePage *tree_page) {
     auto num_remove_items = latched_pages->size() - 1;
     for (auto iter = latched_pages->begin(); num_remove_items != 0; --num_remove_items) {
@@ -697,7 +688,6 @@ auto BPLUSTREE_TYPE::PessimisticSearch(const KeyType &key, SearchMode mode, Tran
       latched_pages->pop_front();
     }
   };
-  // 根据mode（插入或删除）来定义一个安全条件。插入模式下要求当前页面的大小小于最大容量，删除模式下要求页面的大小大于最小容量，并且删除后要保证容量不会小于最小值和最大值之间的差距。
   const auto is_safe_predicate = (mode == SearchMode::Insert)
       ? [](BPlusTreePage *tree_page, int cur_size_for_insert, int cur_size_for_delete) -> bool {
     return cur_size_for_insert < tree_page->GetMaxSize();
@@ -803,7 +793,6 @@ auto BPLUSTREE_TYPE::OptimisticSearch(const KeyType &key, SearchMode mode, bustu
  * insert a record <index_name, root_page_id> into header page instead of
  * updating it.
  */
-
 /*
  * 在头页中更新/插入根页面 ID（头页位于 `include/page/header_page.h` 中，page_id = 0）。
  * 每次根页面 ID 更改时都调用此方法。
@@ -813,7 +802,6 @@ auto BPLUSTREE_TYPE::OptimisticSearch(const KeyType &key, SearchMode mode, bustu
 INDEX_TEMPLATE_ARGUMENTS
 void BPLUSTREE_TYPE::UpdateRootPageId(int insert_record) {
   THREAD_DEBUG_LOG("(thread %ld) update root id to be %d", DEBUG_THREAD_ID, insert_record);
-  // 从缓冲池管理器获取头页。HEADER_PAGE_ID = 0,从缓冲池中获取指定页面并返回一个指向该页面的指针。该页面会被缓存直到释放 
   auto *header_page = static_cast<HeaderPage *>(buffer_pool_manager_->FetchPage(HEADER_PAGE_ID));
   if (insert_record != 0) {
     // create a new record<index_name + root_page_id> in header_page
@@ -848,7 +836,6 @@ void BPLUSTREE_TYPE::InsertFromFile(const std::string &file_name, Transaction *t
  * This method is used for test only
  * Read data from file and remove one by one
  */
- // 测试脚本用例
 INDEX_TEMPLATE_ARGUMENTS
 void BPLUSTREE_TYPE::RemoveFromFile(const std::string &file_name, Transaction *transaction) {
   int64_t key;
@@ -864,7 +851,7 @@ void BPLUSTREE_TYPE::RemoveFromFile(const std::string &file_name, Transaction *t
 /**
  * This method is used for debug only, You don't need to modify
  */
- // 将B+树的结构以图形形式输出到文件中，以便可视化和调试。
+// 将B+树的结构以图形形式输出到文件中，以便可视化和调试。
 INDEX_TEMPLATE_ARGUMENTS
 void BPLUSTREE_TYPE::Draw(BufferPoolManager *bpm, const std::string &outf) {
   if (IsEmpty()) {
@@ -900,7 +887,8 @@ void BPLUSTREE_TYPE::Print(BufferPoolManager *bpm) {
  * @param page
  * @param bpm
  * @param out
- */INDEX_TEMPLATE_ARGUMENTS
+ */
+INDEX_TEMPLATE_ARGUMENTS
 void BPLUSTREE_TYPE::ToGraph(BPlusTreePage *page, BufferPoolManager *bpm, std::ofstream &out) const {
   std::string leaf_prefix("LEAF_");
   std::string internal_prefix("INT_");
@@ -997,7 +985,6 @@ void BPLUSTREE_TYPE::ToGraph(BPlusTreePage *page, BufferPoolManager *bpm, std::o
 INDEX_TEMPLATE_ARGUMENTS
 void BPLUSTREE_TYPE::ToString(BPlusTreePage *page, BufferPoolManager *bpm) const {
   if (page->IsLeafPage()) {
-    // 叶子节点的打印逻辑
     auto *leaf = reinterpret_cast<LeafPage *>(page);
     std::cout << "Leaf Page: " << leaf->GetPageId() << " parent: " << leaf->GetParentPageId()
               << " next: " << leaf->GetNextPageId() << std::endl;
@@ -1051,4 +1038,3 @@ template class BPlusTree<GenericKey<32>, RID, GenericComparator<32>>;
 template class BPlusTree<GenericKey<64>, RID, GenericComparator<64>>;
 
 }  // namespace bustub
-
