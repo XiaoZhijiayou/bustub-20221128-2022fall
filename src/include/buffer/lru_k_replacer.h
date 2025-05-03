@@ -38,26 +38,25 @@ namespace bustub {
  */
 class LRUKReplacer {
  public:
-
   class FrameInfo {
-    public:
-     explicit FrameInfo(frame_id_t frame_id);
-     inline auto IsEvicatable() const -> bool { return evictable_; }
+   public:
+    explicit FrameInfo(frame_id_t frame_id);
+    inline auto IsEvicatable() const -> bool { return evictable_; }
 
-     inline auto SetEvictable(bool set_evictable) -> void { evictable_ = set_evictable; }
+    inline auto SetEvictable(bool set_evictable) -> void { evictable_ = set_evictable; }
 
-     inline auto IncreaseTimes() -> void { times_++; }
+    inline auto IncreaseTimes() -> void { times_++; }
 
-     inline auto GetId() const -> frame_id_t { return frame_id_; }
+    inline auto GetId() const -> frame_id_t { return frame_id_; }
 
-     inline auto GetTimes() const -> size_t { return times_; }
+    inline auto GetTimes() const -> size_t { return times_; }
 
-    private:
-     frame_id_t frame_id_;
-     // 记录该帧被访问的次数
-     size_t times_;
-     // 记录该帧是否可以被驱逐
-     bool evictable_;                    
+   private:
+    frame_id_t frame_id_;
+    // 记录该帧被访问的次数
+    size_t times_;
+    // 记录该帧是否可以被驱逐
+    bool evictable_;
   };
 
   /**
@@ -94,7 +93,7 @@ class LRUKReplacer {
    * @param[out] frame_id id of frame that is evicted.
    * @return true if a frame is evicted successfully, false if no frames can be evicted.
    */
-   // 寻找可以被驱逐的帧，并将其驱逐
+  // 寻找可以被驱逐的帧，并将其驱逐
   auto Evict(frame_id_t *frame_id) -> bool;
 
   /**
@@ -155,7 +154,7 @@ class LRUKReplacer {
    *
    * @return size_t
    */
-   // 返回当前可驱逐的帧的数量
+  // 返回当前可驱逐的帧的数量
   auto Size() -> size_t;
 
  private:
@@ -163,7 +162,7 @@ class LRUKReplacer {
   // Remove maybe_unused if you start using them.
   [[maybe_unused]] size_t current_timestamp_{0};
   [[maybe_unused]] size_t curr_size_{0};
-  //replacer_size_ 代码存储的最大帧数
+  // replacer_size_ 代码存储的最大帧数
   [[maybe_unused]] size_t replacer_size_;
   // 就是k值
   [[maybe_unused]] size_t k_;

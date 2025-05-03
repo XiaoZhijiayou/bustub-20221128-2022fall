@@ -15,6 +15,9 @@
 #include <atomic>
 #include <chrono>  // NOLINT
 #include <cstdint>
+#include <vector>
+#include <map>
+#include <set>
 
 namespace bustub {
 

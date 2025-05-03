@@ -86,29 +86,26 @@ auto ExtendibleHashTable<K, V>::Remove(const K &key) -> bool {
   return dir_[index]->Remove(key);
 }
 
-
 template <typename K, typename V>
 auto ExtendibleHashTable<K, V>::RedistributeBucket(std::shared_ptr<Bucket> bucket) -> void {}
 
 /**
-  第 1 步 – 分析数据元素： 数据元素可能以多种形式存在，例如。Integer、String、Float 等。目前，我们来研究 integer 类型的数据元素。例如：49。
-  第 2 步 – 转换为二进制格式： 将数据元素转换为二进制形式。对于字符串元素，请考虑起始字符的 ASCII 等效整数，然后将该整数转换为二进制形式。由于我们有 49 作为数据元素，因此其二进制形式为 110001。
-  第 3 步 – 检查目录的 Global Depth。假设 Hash 目录的全局深度为 3。
-  第 4 步 – 确定目录： 考虑二进制数中 LSB 的 'Global-Depth' 数量，并将其与目录 ID 匹配。
-  例如。获得的二进制是： 110001 且全局深度为 3。因此，哈希函数将返回 3 个 110001 的 LSB，即 001。
-  第 5 步 – 导航： 现在，导航到 directory-id 为 001 的目录指向的存储桶。
-  第 6 步 – 插入和溢出检查： 插入元素并检查桶是否溢出。如果遇到溢出，请转到步骤 7，然后转到步骤 8，否则，请转到步骤 9。
-  第 7 步 – 处理数据插入期间的超流情况：
-  如果插入桶失败
-     检查局部深度是否小于或等于全局深度：
-      1.如果溢出 Bucket 的局部深度等于全局深度，则需要进行 Directory Expansion 和 Bucket Split。然后将全局深度和局部深度值递增 1。并且，分配适当的指针。
-      目录扩展将使哈希结构中存在的目录数量增加一倍。
-      2.如果局部深度小于全局深度，则仅发生 Bucket Split。然后仅将局部深度值递增 1。并且，分配适当的指针。
-      Directory Expansion：就是将新加入的那一半按照顺序依次连接上之前的目录例如：dir_[i + capacity] = dir_[i];
+  第 1 步 – 分析数据元素： 数据元素可能以多种形式存在，例如。Integer、String、Float 等。目前，我们来研究 integer
+  类型的数据元素。例如：49。 第 2 步 – 转换为二进制格式： 将数据元素转换为二进制形式。对于字符串元素，请考虑起始字符的
+  ASCII 等效整数，然后将该整数转换为二进制形式。由于我们有 49 作为数据元素，因此其二进制形式为 110001。 第 3 步 –
+  检查目录的 Global Depth。假设 Hash 目录的全局深度为 3。 第 4 步 – 确定目录： 考虑二进制数中 LSB 的 'Global-Depth'
+  数量，并将其与目录 ID 匹配。 例如。获得的二进制是： 110001 且全局深度为 3。因此，哈希函数将返回 3 个 110001 的 LSB，即
+  001。 第 5 步 – 导航： 现在，导航到 directory-id 为 001 的目录指向的存储桶。 第 6 步 – 插入和溢出检查：
+  插入元素并检查桶是否溢出。如果遇到溢出，请转到步骤 7，然后转到步骤 8，否则，请转到步骤 9。 第 7 步 –
+  处理数据插入期间的超流情况： 如果插入桶失败 检查局部深度是否小于或等于全局深度： 1.如果溢出 Bucket
+  的局部深度等于全局深度，则需要进行 Directory Expansion 和 Bucket Split。然后将全局深度和局部深度值递增
+  1。并且，分配适当的指针。 目录扩展将使哈希结构中存在的目录数量增加一倍。 2.如果局部深度小于全局深度，则仅发生 Bucket
+  Split。然后仅将局部深度值递增 1。并且，分配适当的指针。 Directory
+  Expansion：就是将新加入的那一半按照顺序依次连接上之前的目录例如：dir_[i + capacity] = dir_[i];
   最后递归：被拆分的溢出存储桶中存在的 Elements 将根据目录的新全局深度进行重新哈希处理。
   */
 template <typename K, typename V>
-void ExtendibleHashTable<K, V>::InsertInternal(const K &key, const V &value){
+void ExtendibleHashTable<K, V>::InsertInternal(const K &key, const V &value) {
   size_t index = IndexOf(key);
   std::shared_ptr<Bucket> bucket = dir_[index];
   bool res = bucket->Insert(key, value);
@@ -120,7 +117,7 @@ void ExtendibleHashTable<K, V>::InsertInternal(const K &key, const V &value){
   if (GetGlobalDepthInternal() == bucket->GetDepth()) {
     global_depth_++;
     size_t capacity = dir_.size();
-    dir_.resize(capacity  << 1);
+    dir_.resize(capacity << 1);
     for (size_t i = 0; i < capacity; i++) {
       dir_[i + capacity] = dir_[i];
     }
@@ -156,7 +153,7 @@ void ExtendibleHashTable<K, V>::InsertInternal(const K &key, const V &value){
     }
   }
   num_buckets_++;
-  //在桶分裂并且更新目录之后，递归的再吃尝试插入键值对(这时桶的深度已经增加，新的目录已经扩展),这种递归保证了插入操作最终能够成功
+  // 在桶分裂并且更新目录之后，递归的再吃尝试插入键值对(这时桶的深度已经增加，新的目录已经扩展),这种递归保证了插入操作最终能够成功
   return InsertInternal(key, value);
 }
 
@@ -194,7 +191,6 @@ auto ExtendibleHashTable<K, V>::Bucket::Remove(const K &key) -> bool {
   }
   return false;
 }
-
 
 template <typename K, typename V>
 auto ExtendibleHashTable<K, V>::Bucket::Insert(const K &key, const V &value) -> bool {

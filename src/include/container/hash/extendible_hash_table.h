@@ -63,8 +63,6 @@ class ExtendibleHashTable : public HashTable<K, V> {
    */
   auto GetNumBuckets() const -> int;
 
- 
-
   /**
    *
    * TODO(P1): Add implementation
@@ -96,8 +94,6 @@ class ExtendibleHashTable : public HashTable<K, V> {
    */
   void Insert(const K &key, const V &value) override;
 
-  
-
   /**
    *
    * TODO(P1): Add implementation
@@ -126,7 +122,6 @@ class ExtendibleHashTable : public HashTable<K, V> {
     inline void IncrementDepth() { depth_++; }
 
     inline auto GetItems() -> std::list<std::pair<K, V>> & { return list_; }
-
 
     /**
      *

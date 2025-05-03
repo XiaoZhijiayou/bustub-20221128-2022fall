@@ -126,3 +126,10 @@ src/include/execution/topn_executor.h
 src/execution/topn_executor.cpp
 src/optimizer/sort_limit_as_topn.cpp
 ```
+
+### project4
+- 需要修改的文件
+```
+concurrency/lock_manager.cpp
+include/concurrency/lock_manager.h
+```
