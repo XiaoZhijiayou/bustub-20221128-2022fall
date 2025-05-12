@@ -54,65 +54,87 @@ inline void foo(Args... args) {}
 
 #endif
 
-/******************************* < Hoo Debug Log - End > *******************************/
 
 namespace bustub {
+
+// 对表oid申请lock_mode锁
 auto LockManager::LockTable(Transaction *txn, LockMode lock_mode, const table_oid_t &oid) -> bool {
   THREAD_DEBUG_LOG("[thread T%ld] txn %d(%p - %s) acquire %s lock on table %d: start", DEBUG_THREAD_ID,
                    txn->GetTransactionId(), txn, TransactionStateToString(txn->GetState()).data(),
                    LockModeToString(lock_mode).data(), oid);
+  // 对事务加锁                
   txn->LockTxn();
+  // 如果事务被标记为aborted，直接返回false
   if (txn->GetState() == TransactionState::ABORTED) {
     txn->UnlockTxn();
     return false;
   }
+  // 检查在当前的隔离级别下，是否允许申请该锁
   if (AbortReason abort_reason;
       !LockRestrictionCheck(txn->GetState(), txn->GetIsolationLevel(), lock_mode, abort_reason)) {
     THREAD_DEBUG_LOG("[thread T%ld] txn %d violated 'isolation and state restriction'", DEBUG_THREAD_ID,
                      txn->GetTransactionId());
     AbortTransaction(txn, abort_reason);
   }
-  table_lock_map_latch_.lock();
+
+  // 获取表的请求队列
+  table_lock_map_latch_.lock(); 
   if (table_lock_map_.count(oid) == 0) {
     table_lock_map_[oid] = std::make_shared<LockRequestQueue>();
   }
   auto &request_queue = table_lock_map_[oid];
   table_lock_map_latch_.unlock();
+  // 检查事务是否已经持有该表的锁
   bool granted = false;
   LockMode held_lock_mode;
   std::shared_ptr<std::unordered_set<table_oid_t>> held_lock_set;
   if (IsTransactionHoldLockOnTable(txn, oid, held_lock_mode, held_lock_set)) {
-    // Case A: transaction does not hold any lock on the table.
+    // Case A: transaction hold  lock on the table.
     if (held_lock_mode == lock_mode) {
+      // The lock is already held by the txn.
       granted = true;
     } else if (LockUpgradeCheck(held_lock_mode, lock_mode)) {
+      // 检查是否允许升级锁
       {
         // Release the lock on time, the concurrent lock can be possible.
         std::scoped_lock lock(request_queue->latch_);
         if (request_queue->upgrading_ != INVALID_TXN_ID) {
+          // 已经有其他事务在升级同一资源，此时事务不能同时升级，触发升级冲突，直接中止当前的事务
           THREAD_DEBUG_LOG("[thread T%ld] txn %d violated 'request_queue->upgrading_ != INVALID_TXN_ID'",
                            DEBUG_THREAD_ID, txn->GetTransactionId());
           AbortTransaction(txn, AbortReason::INCOMPATIBLE_UPGRADE);
         }
+        // 标记本事务开始升级
         request_queue->upgrading_ = txn->GetTransactionId();
       }
+      // 从原集合移除
       held_lock_set->erase(oid);
       // Move this lock upgrade request to the first position of the waiting list.
       std::unique_lock request_queue_lock(request_queue->latch_);
       auto held_lock_request_iter =
           std::find_if(request_queue->request_queue_.begin(), request_queue->request_queue_.end(),
                        [txn](LockRequest *request) { return request->txn_id_ == txn->GetTransactionId(); });
+      // 在队列中找到原来那个原本属于本事务的LockRequest节点，并取出它的指针。
       auto held_lock_request = *held_lock_request_iter;
+      // 从原位删除
       request_queue->request_queue_.erase(held_lock_request_iter);
+      // 插入到第一个还没被授予的请求位置
       auto first_waiting_lock_request =
           std::find_if(request_queue->request_queue_.begin(), request_queue->request_queue_.end(),
                        [](LockRequest *request) { return !request->granted_; });
+      // 把旧的请求插入到第一个未授予请求之前，也就是优先处理升级
       auto this_request_iter = request_queue->request_queue_.insert(first_waiting_lock_request, held_lock_request);
+      // 找到原请求的位置并且移除
+      // 插入到第一个还没被授予的请求界面
       held_lock_request->granted_ = false;
       held_lock_request->lock_mode_ = lock_mode;
       bool want_wake;
+      // 如果与前面的已经授予的锁不兼容，则阻塞等待
+      // 醒来后重新检查事务状态，最终将granted_ = true 或失败并返回
       std::tie(granted, want_wake) = RequestLock(txn, lock_mode, request_queue, this_request_iter, request_queue_lock);
+      // 清除升级标记，清除标记
       request_queue->upgrading_ = INVALID_TXN_ID;
+      // 如果没有拿到锁，要做清理
       if (!granted) {
         delete held_lock_request;
         txn->UnlockTxn();
@@ -122,6 +144,7 @@ auto LockManager::LockTable(Transaction *txn, LockMode lock_mode, const table_oi
         }
         return false;
       }
+      // 如果需要，还需要唤醒下一个兼容事务
       if (want_wake) {
         request_queue_lock.unlock();
         request_queue->cv_.notify_all();
@@ -135,10 +158,12 @@ auto LockManager::LockTable(Transaction *txn, LockMode lock_mode, const table_oi
     // Case B: Txn does not hold any lock on the table.
     auto lock_request = new LockRequest(txn->GetTransactionId(), lock_mode, oid);
     std::unique_lock request_queue_lock(request_queue->latch_);
+    // 将新请求追加到request_queue->request_queue_的末尾，并记录迭代器
     request_queue->request_queue_.emplace_back(lock_request);
     auto lock_request_iter = std::prev(request_queue->request_queue_.end());
     bool want_wake;
     std::tie(granted, want_wake) = RequestLock(txn, lock_mode, request_queue, lock_request_iter, request_queue_lock);
+    // 失败处理
     if (!granted) {
       delete lock_request;
       txn->UnlockTxn();
@@ -148,12 +173,14 @@ auto LockManager::LockTable(Transaction *txn, LockMode lock_mode, const table_oi
       }
       return false;
     }
+    // 成功后唤醒
     if (want_wake) {
       request_queue_lock.unlock();
       request_queue->cv_.notify_all();
     }
   }
   // Update the status of the txn lock set. In this point, granted is true,
+  // 更新事务的锁集合
   switch (lock_mode) {
     case LockMode::SHARED:
       txn->GetSharedTableLockSet()->emplace(oid);

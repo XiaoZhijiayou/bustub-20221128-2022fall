@@ -45,6 +45,7 @@ class LockManager {
    * This could be a lock request on a table OR a row.
    * For table lock requests, the rid_ attribute would be unused.
    */
+  // 封装一次加锁请求
   class LockRequest {
    public:
     LockRequest(txn_id_t txn_id, LockMode lock_mode, table_oid_t oid) /** Table lock request */
@@ -62,9 +63,11 @@ class LockManager {
     /** Rid of the row for a row lock; unused for table locks */
     RID rid_;
     /** Whether the lock has been granted or not */
+    // 是否被授予锁
     bool granted_{false};
   };
 
+  // 管理某一个资源上的锁的请求队列
   class LockRequestQueue {
    public:
     auto ToString() -> std::string;
@@ -85,6 +88,7 @@ class LockManager {
    */
   LockManager() {
     enable_cycle_detection_ = true;
+    // 启动一个后台线程周期检查死锁
     cycle_detection_thread_ = new std::thread(&LockManager::RunCycleDetection, this);
   }
 
@@ -106,20 +110,25 @@ class LockManager {
 
   /**
    * [LOCK_NOTE]
-   *
-   * GENERAL BEHAVIOUR:
-   *    Both LockTable() and LockRow() are blocking methods; they should wait
+   * GENERAL BEHAVIOUR:   一般行为  如果在等待期间事务被中止（abort），则锁不应被授予，函数返回 false。
+   * LockTable() 和 LockRow() 是阻塞方法。调用这些函数的事务必须等待直到锁被授予。
+   *    Both LockTable() and LockRow() are blocking methods; they should wait  
    * till the lock is granted and then return. If the transaction was aborted in
    * the meantime, do not grant the lock and return false.
    *
    *
-   * MULTIPLE TRANSACTIONS:
+   * MULTIPLE TRANSACTIONS:  多事务调度
+   * 每个资源（表或行）都维护一个锁请求队列。加锁应遵循 FIFO（先进先出） 原则。
+   * 若有多个请求兼容（例如多个共享锁），应同时授予，前提是 FIFO 顺序不被破坏。
    *    LockManager should maintain a queue for each resource; locks should be
    * granted to transactions in a FIFO manner. If there are multiple compatible
    * lock requests, all should be granted at the same time as long as FIFO is
    * honoured.
    *
    * SUPPORTED LOCK MODES:
+   * 表锁支持所有锁类型（S, X, IS, IX, SIX）；
+   * 行锁不支持意图锁（IS, IX, SIX）；
+   *   若尝试在行上加意图锁，应立即将事务状态设为 ABORTED 并抛出异常 ATTEMPTED_INTENTION_LOCK_ON_ROW。
    *    Table locking should support all lock modes.
    *    Row locking should not support Intention locks. Attempting this should
    * set the TransactionState as ABORTED and throw a TransactionAbortException
@@ -156,7 +165,10 @@ class LockManager {
    *        S, IS, SIX locks are never allowed
    *
    *
-   * MULTILEVEL LOCKING:
+   * MULTILEVEL LOCKING: 多级锁检查
+   * 行锁依赖表锁：若事务要对某行加锁，必须已持有该表的适当锁：
+   *    对某行加 X 锁，必须已持有该表上的 X, IX, 或 SIX；
+   *    若缺乏对应表锁，应将事务状态设为 ABORTED 并抛出 TABLE_LOCK_NOT_PRESENT。
    *    While locking rows, Lock() should ensure that the transaction has an
    * appropriate lock on the table which the row belongs to. For instance, if an
    * exclusive lock is attempted on a row, the transaction must hold either X,
@@ -165,7 +177,11 @@ class LockManager {
    * TransactionAbortException (TABLE_LOCK_NOT_PRESENT)
    *
    *
-   * LOCK UPGRADE:
+   * LOCK UPGRADE: 锁升级机制
+   * 若事务请求的锁与已持有锁相同，直接返回 true；
+   * 若不同，尝试进行锁升级；
+   *    升级请求优先于其他普通请求；
+   *    只允许以下升级路径：IS -> [S, X, IX, SIX]，S -> [X, SIX]，IX -> [X, SIX]，SIX -> [X]
    *    Calling Lock() on a resource that is already locked should have the
    * following behaviour:
    *    - If requested lock mode is the same as that of the lock presently held,
@@ -218,6 +234,7 @@ class LockManager {
    * TRANSACTION STATE UPDATE
    *    Unlock should update the transaction state appropriately (depending upon
    * the ISOLATION LEVEL) Only unlocking S or X locks changes transaction state.
+   * 只有解s 或者 x 锁才会改变事务的状态
    *
    *    REPEATABLE_READ:
    *        Unlocking S/X locks should set the transaction state to SHRINKING
