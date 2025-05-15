@@ -38,7 +38,16 @@ class TransactionManager;
  */
 class LockManager {
  public:
+  /*| S  |  X   |   IS    |     IX    |   SIX   |  */
   enum class LockMode { SHARED, EXCLUSIVE, INTENTION_SHARED, INTENTION_EXCLUSIVE, SHARED_INTENTION_EXCLUSIVE };
+ /**
+    * 共享锁：多个事务可以同时持有共享锁，他们之间是完全兼容的，它们都能在同一时刻并发读取该表/行
+    * 意向共享锁： 本身并不允许你去读写数据，它只是一个声明--告诉系统我打算对这个表里的某些行加共享锁。可以被多个事务同时加到同一张表上
+    * 意向排他锁： 可以多个事务同时对同一张表持有IX锁，只能加在表上加，不能在行上直接加，对行的排他操作要使用真正的X锁。
+    * 排他锁： 只有一个事务可以持有排他锁，其他事务不能对该表/行加任何锁，与所有的锁都不兼容，它可以对表加也可以对行加
+    * 共享意向排他锁： SIX同任何其他的锁都不兼容，对行的排他操作要使用真正的X锁，SIX只能加在表上，不能加在行上，这是一个表级复合锁，表示我既要读
+    *     整张表，又打算随后对表里面某些行做排他写操作。若要对行做排他写，仍然要在行上单独申请x锁。
+    */
 
   /**
    * Structure to hold a lock request.
@@ -134,6 +143,33 @@ class LockManager {
    * set the TransactionState as ABORTED and throw a TransactionAbortException
    * (ATTEMPTED_INTENTION_LOCK_ON_ROW)
    *
+   * 隔离级别（ISOLATION LEVEL）：
+   *    根据不同的隔离级别，事务在加锁时应当满足：
+   *      – 只有在必要时才加锁，并且
+   *      – 只有在被允许时才加锁
+   *
+   *    例如，在 READ_UNCOMMITTED 下，不需要加 S（共享）、IS（意向共享）或 SIX（共享并意向排它）锁；
+   *    如果仍尝试加这些锁，应将事务状态设为 ABORTED，并抛出 TransactionAbortException（LOCK_SHARED_ON_READ_UNCOMMITTED）。
+   *
+   *    同样地，如果事务处于 SHRINKING（收缩）状态，则不允许在行上加 X（排它）或 IX（意向排它）锁；
+   *    若有此类尝试，应将事务状态设为 ABORTED，并抛出 TransactionAbortException（LOCK_ON_SHRINKING）。
+   *
+   *    REPEATABLE_READ（可重复读）：
+   *        – 事务必须获取所有类型的锁。
+   *        – 在 GROWING（增长）阶段，所有锁均被允许。                                                                                                                                                                        
+   *        – 在 SHRINKING（收缩）阶段，不允许获取任何锁。
+   *
+   *    READ_COMMITTED（已提交读）：
+   *        – 事务必须获取所有类型的锁。
+   *        – 在 GROWING 阶段，所有锁均被允许。
+   *        – 在 SHRINKING 阶段，仅允许获取 IS（意向共享）和 S（共享）锁。
+   *
+   *    READ_UNCOMMITTED（未提交读）：
+   *        – 事务只需获取 IX（意向排它）和 X（排它）锁。
+   *        – 在 GROWING 阶段，允许获取 X 和 IX 锁。
+   *        – 永远不允许获取 S、IS、SIX 锁。
+   *
+   *
    *
    * ISOLATION LEVEL:
    *    Depending on the ISOLATION LEVEL, a transaction should attempt to take
@@ -212,6 +248,41 @@ class LockManager {
    *    lock sets appropriately (check transaction.h)
    */
 
+
+  /**
+  * 【解锁说明】
+  *
+  * 一般行为：
+  *    无论是 UnlockTable() 还是 UnlockRow()，都应当释放对应资源上的锁并返回。
+  *    两者都要确保当前事务确实持有该资源的锁；如果没有持有任何锁，LockManager
+  *    应将事务状态设为 ABORTED，并抛出 TransactionAbortException
+  *    (ATTEMPTED_UNLOCK_BUT_NO_LOCK_HELD)。
+  *
+  *    另外，当解锁表时，事务不能在该表的任何行上仍保有锁；若存在行锁未释放，
+  *    则应将事务状态设为 ABORTED，并抛出 TransactionAbortException
+  *    (TABLE_UNLOCKED_BEFORE_UNLOCKING_ROWS)。
+  *
+  *    最后，释放资源后，LockManager 应尝试为该资源上因等待而挂起的其他锁请求
+  *    授予锁（如果兼容的话）。
+  *
+  * 事务状态更新：
+  *    解锁操作应根据隔离级别适当更新事务状态。只有释放 S（共享）或 X（排它）锁
+  *    才会改变事务状态。
+  *
+  *    REPEATABLE_READ（可重复读）：
+  *        释放 S/X 锁后，将事务状态设为 SHRINKING（收缩期）。
+  *
+  *    READ_COMMITTED（读已提交）：
+  *        释放 X 锁后，将事务状态设为 SHRINKING；
+  *        释放 S 锁不改变事务状态。
+  *
+  *    READ_UNCOMMITTED（读未提交）：
+  *        释放 X 锁后，将事务状态设为 SHRINKING；
+  *        S 锁在此隔离级别下本就不允许持有，若发生则行为未定义。
+  *
+  * 记录管理（Bookkeeping）：
+  *    资源解锁后，LockManager 应更新事务的锁集合（参见 transaction.h）。
+  */
   /**
    * [UNLOCK_NOTE]
    *

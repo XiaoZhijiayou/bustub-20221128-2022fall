@@ -124,3 +124,6 @@ while (!GrantLock(...)) {
     queue->cv_.wait(lock);
 }
 ```
+
+- 为何升级之后的事务锁要进行插队操作，插入到未授予锁的请求队列的头部？
+- ![alt text](image.png)

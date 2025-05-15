@@ -21,7 +21,8 @@
       << "Test Failed Due to Time Out";
 
 namespace bustub {
-TEST(LockManagerDeadlockDetectionTest, DISABLED_EdgeTest) {
+
+TEST(LockManagerDeadlockDetectionTest, EdgeTest) {
   LockManager lock_mgr{};
 
   const int num_nodes = 100;
@@ -63,7 +64,7 @@ TEST(LockManagerDeadlockDetectionTest, DISABLED_EdgeTest) {
   }
 }
 
-TEST(LockManagerDeadlockDetectionTest, DISABLED_BasicDeadlockDetectionTest) {
+TEST(LockManagerDeadlockDetectionTest, BasicDeadlockDetectionTest) {
   LockManager lock_mgr{};
   TransactionManager txn_mgr{&lock_mgr};
 
@@ -122,4 +123,5 @@ TEST(LockManagerDeadlockDetectionTest, DISABLED_BasicDeadlockDetectionTest) {
   delete txn0;
   delete txn1;
 }
+
 }  // namespace bustub
